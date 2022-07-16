@@ -29,7 +29,9 @@ config_file.add_section("Classifier")
 config_file.set("Classifier", "preprocessing_fname", "<Path to preprocessing file>")
 config_file.set("Classifier", "classifier_fname", "<Path to classifier file>")
 config_file.set("Classifier", "regressor_fname", "<Path to regressor file>")
-config_file.set("Classifier", "time_per_trial", "1")
+config_file.set("Classifier", "time_per_trial", "1000")
+config_file.set("Classifier", "start_time", "875")
+config_file.set("Classifier", "time_pre_collision", "125")
 
 with open(r"config.ini", "w") as configfileObj:
     config_file.write(configfileObj)

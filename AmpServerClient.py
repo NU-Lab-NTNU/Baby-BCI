@@ -428,8 +428,9 @@ class AmpServerClient:
         Converts last n samples to a numpy array, scale to get microvolts
         """
         m = len(self.eeg_deque)
+        time_read = time.perf_counter()
         tmp = list(itertools.islice(self.eeg_deque, (m - n * self.n_channels), m))
-        return self.scaling_factor * np.array(tmp).reshape((self.n_channels, n))
+        return self.scaling_factor * np.array(tmp).reshape((self.n_channels, n)), time_read
 
     def start_listening(self):
         self._send_data_command("cmd_ListenToAmp", str(self.amp_id), "0", "0")

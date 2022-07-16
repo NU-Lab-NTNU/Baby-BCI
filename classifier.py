@@ -24,6 +24,8 @@ class Classifier:
         _n_channels,
         _sample_rate,
         _time_per_trial,
+        _time_start,
+        _time_pre_collision,
         _preprocessing_fname,
         _classifier_fname,
         _regressor_fname,
@@ -32,10 +34,13 @@ class Classifier:
         self.n_channels = _n_channels
         self.sample_rate = _sample_rate
         self.time_per_trial = _time_per_trial  # time in seconds per trial
-        self.n_samples = self.time_per_trial * self.sample_rate
+        self.time_start = _time_start
+        self.time_pre_collision = _time_pre_collision
+        self.n_samples = round(self.time_per_trial * self.sample_rate / 1000.0)
         self.eeg = np.zeros(
             (self.n_channels, self.n_samples)
         )  # np.array holding eeg data for one trial
+        self.delay = 0
 
         # Filenames for models
         self.preprocessing_fname = _preprocessing_fname
@@ -75,18 +80,34 @@ class Classifier:
         self.trial_data_ready.clear()
 
     def process(self):
+        discard = 0
+        y_prob = 0
+        y = 0
+        t = 0
+        eeg = None
+
         # Placeholder for processing
         time.sleep(0.5)
 
-        # Preprocessing
-        discard = 1 if np.random.randint(0, 20) < 1 else 0
+        # Acount for delay
+        if self.delay > self.time_per_trial - self.time_start:
+            discard = 1
+            logging.warning("classifier: Too large delay, trial discarded. Increase time_per_trial or speed up the system somehow.")
+        else:
+            start = self.time_per_trial - self.time_start - self.delay
+            stop = self.time_per_trial - self.time_stop - self.delay
+            eeg = self.eeg[:,start:stop]
 
-        # Classification
-        y_prob = np.random.randint(0, 101) / 100.0
-        y = 1 if y_prob >= 0.5 else 0
+        if not discard and eeg is not None:
+            # Preprocessing
+            discard = 1 if np.random.randint(0, 20) < 1 else 0
 
-        # Regression
-        t = -np.random.randint(400, 1000)
+            # Classification
+            y_prob = np.random.randint(0, 101) / 100.0
+            y = 1 if y_prob >= 0.5 else 0
+
+            # Regression
+            t = -np.random.randint(400, 1000)
 
         self.y_prob.append(y_prob)
         self.y.append(y)

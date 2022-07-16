@@ -27,6 +27,9 @@ class Operator:
         # Timing stuff
         self.time_of_data_fetched = 0
 
+        # Flags
+        self.is_ok = True
+
         # Submodules
         self.eprimeserver = EprimeServer(
             config["E-Prime"]["socket_address"],
@@ -46,6 +49,8 @@ class Operator:
             int(config["Global"]["n_channels"]),
             int(config["Global"]["sample_rate"]),
             int(config["Classifier"]["time_per_trial"]),
+            int(config["Classifier"]["time_start"]),
+            int(config["Classifier"]["time_pre_collision"]),
             config["Classifier"]["preprocessing_fname"],
             config["Classifier"]["classifier_fname"],
             config["Classifier"]["regressor_fname"],
@@ -67,7 +72,8 @@ class Operator:
     """
 
     def control_loop(self):
-        while 1:
+
+        while self.is_ok:
             self.wait_for_trial()
 
             self.get_trial_eeg()
@@ -106,13 +112,9 @@ class Operator:
     """
 
     def get_trial_eeg(self):
-        self.clf.eeg = self.ampclient.deque_to_numpy(self.clf.n_samples)
-        self.time_of_data_fetched = time.perf_counter()
-        delay = round(
-            (self.time_of_data_fetched - self.eprimeserver.time_of_trial_finish) * 1000,
-            2,
-        )
-        logging.info(f"Delay E-prime to AmpServer client: {delay} milliseconds")
+        self.clf.eeg, self.time_of_data_fetched = self.ampclient.deque_to_numpy(self.clf.n_samples)
+        self.clf.delay = (self.time_of_data_fetched - self.eprimeserver.time_of_trial_finish) * 1000
+        logging.info(f"Delay E-prime to AmpServer client: {round(self.clf.delay, 2)} milliseconds")
         logging.info("operator: setting trial_data_ready")
         self.clf.trial_data_ready.set()
 
