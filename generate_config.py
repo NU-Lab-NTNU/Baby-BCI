@@ -23,15 +23,15 @@ config_file.add_section("E-Prime")
 config_file.set("E-Prime", "socket_address", "10.0.0.41")
 config_file.set("E-Prime", "port", "20237")
 
-config_file.add_section("Classifier")
+config_file.add_section("SignalProcessing")
 
 # Dummy-filenames
-config_file.set("Classifier", "preprocessing_fname", "<Path to preprocessing file>")
-config_file.set("Classifier", "classifier_fname", "<Path to classifier file>")
-config_file.set("Classifier", "regressor_fname", "<Path to regressor file>")
-config_file.set("Classifier", "time_per_trial", "1000")
-config_file.set("Classifier", "start_time", "875")
-config_file.set("Classifier", "time_pre_collision", "125")
+config_file.set("SignalProcessing", "preprocessing_fname", "<Path to preprocessing file>")
+config_file.set("SignalProcessing", "classifier_fname", "<Path to classifier file>")
+config_file.set("SignalProcessing", "regressor_fname", "<Path to regressor file>")
+config_file.set("SignalProcessing", "time_per_trial", "1000")
+config_file.set("SignalProcessing", "start_time", "875")
+config_file.set("SignalProcessing", "time_pre_collision", "125")
 
 with open(r"config.ini", "w") as configfileObj:
     config_file.write(configfileObj)

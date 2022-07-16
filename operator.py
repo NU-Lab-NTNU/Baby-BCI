@@ -1,6 +1,6 @@
 from AmpServerClient import AmpServerClient
 from EprimeServer import EprimeServer
-from classifier import Classifier
+from SignalProcessing import SignalProcessing
 from util import read_config
 
 import logging
@@ -45,15 +45,15 @@ class Operator:
             int(config["AmpServer"]["amp_id"]),
             config["AmpServer"]["amp_model"],
         )
-        self.clf = Classifier(
+        self.clf = SignalProcessing(
             int(config["Global"]["n_channels"]),
             int(config["Global"]["sample_rate"]),
-            int(config["Classifier"]["time_per_trial"]),
-            int(config["Classifier"]["time_start"]),
-            int(config["Classifier"]["time_pre_collision"]),
-            config["Classifier"]["preprocessing_fname"],
-            config["Classifier"]["classifier_fname"],
-            config["Classifier"]["regressor_fname"],
+            int(config["SignalProcessing"]["time_per_trial"]),
+            int(config["SignalProcessing"]["time_start"]),
+            int(config["SignalProcessing"]["time_pre_collision"]),
+            config["SignalProcessing"]["preprocessing_fname"],
+            config["SignalProcessing"]["classifier_fname"],
+            config["SignalProcessing"]["regressor_fname"],
         )
 
         t_eprime = Thread(target=self.eprimeserver.create_socket)
@@ -98,7 +98,7 @@ class Operator:
         self.eprimeserver.trial_finished.clear()
 
     """
-        Classifier stuff
+        SignalProcessing stuff
     """
 
     def wait_for_processing(self):

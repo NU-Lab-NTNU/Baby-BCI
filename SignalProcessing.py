@@ -5,7 +5,7 @@ import os
 import logging
 
 """
-    Contains the class Classifier (should maybe be renamed).
+    Contains the class SignalProcessing (should maybe be renamed).
 
     Last edit: 15th of june 2022
 
@@ -18,7 +18,7 @@ import logging
 """
 
 
-class Classifier:
+class SignalProcessing:
     def __init__(
         self,
         _n_channels,
@@ -69,14 +69,14 @@ class Classifier:
 
     def load_models(self):
         """
-        In the future this should load models for preprocessing, feature extraction, classification and regression
+        In the future this should load models for preprocessing/feature extraction, classification and regression
         """
         time.sleep(0.5)
 
     def wait_for_data(self):
-        logging.info("classifier: waiting for trial_data_ready")
+        logging.info("signalprocessing: waiting for trial_data_ready")
         self.trial_data_ready.wait()
-        logging.info("classifier: clearing trial_data_ready")
+        logging.info("signalprocessing: clearing trial_data_ready")
         self.trial_data_ready.clear()
 
     def process(self):
@@ -92,7 +92,7 @@ class Classifier:
         # Acount for delay
         if self.delay > self.time_per_trial - self.time_start:
             discard = 1
-            logging.warning("classifier: Too large delay, trial discarded. Increase time_per_trial or speed up the system somehow.")
+            logging.warning("signalprocessing: Too large delay, trial discarded. Increase time_per_trial or speed up the system somehow.")
         else:
             start = self.time_per_trial - self.time_start - self.delay
             stop = self.time_per_trial - self.time_stop - self.delay
@@ -116,7 +116,7 @@ class Classifier:
 
     def create_feedback_msg(self):
         self.feedback_msg = f"y = {self.y[-1]}, y_prob = {round(self.y_prob[-1], 2)}, t = {self.t[-1]}, discard = {self.discard[-1]}"
-        logging.info("classifier: setting trial_processed")
+        logging.info("signalprocessing: setting trial_processed")
         self.trial_processed.set()
 
     def dump_data(self):
