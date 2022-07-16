@@ -5,7 +5,7 @@ import time
 import threading
 
 """
-    Contains the class EprimeTCPconn, providing API for communication with E-Prime
+    Contains the class EprimeServer, providing API for communication with E-Prime
 
     Last edit: 15th of june 2022
 
@@ -16,7 +16,7 @@ import threading
 """
 
 
-class EprimeTCPConn:
+class EprimeServer:
     def __init__(self, _socket_address, _port) -> None:
         self.is_ok = False
         self.conn = None
@@ -127,7 +127,7 @@ class EprimeTCPConn:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    tcp = EprimeTCPConn()
+    tcp = EprimeServer()
     tcp.create_socket()
 
     while tcp.is_ok:

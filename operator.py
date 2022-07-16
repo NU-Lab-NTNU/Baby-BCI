@@ -1,5 +1,5 @@
-from AmpServerProClient import AmpServerClient
-from EprimeTCPConn import EprimeTCPConn
+from AmpServerClient import AmpServerClient
+from EprimeServer import EprimeServer
 from classifier import Classifier
 from util import read_config
 
@@ -28,7 +28,7 @@ class Operator:
         self.time_of_data_fetched = 0
 
         # Submodules
-        self.eprimeserver = EprimeTCPConn(
+        self.eprimeserver = EprimeServer(
             config["E-Prime"]["socket_address"],
             int(config["E-Prime"]["port"]),
         )
