@@ -50,6 +50,7 @@ class SignalProcessing:
         # Events
         self.trial_data_ready = threading.Event()
         self.trial_processed = threading.Event()
+        self.error_encountered = threading.Event()
 
         # Flags
         self.stop_flag = False
@@ -74,10 +75,17 @@ class SignalProcessing:
         time.sleep(0.5)
 
     def wait_for_data(self):
+        timeout = 1
         logging.info("signalprocessing: waiting for trial_data_ready")
-        self.trial_data_ready.wait()
-        logging.info("signalprocessing: clearing trial_data_ready")
-        self.trial_data_ready.clear()
+        while self.is_ok():
+            flag = self.trial_data_ready.wait(timeout)
+            if flag:
+                logging.info("signalprocessing: clearing trial_data_ready")
+                self.trial_data_ready.clear()
+                return True
+
+        logging.info("signalprocessing: stop_flag was set whilst waiting for data.")
+        return False
 
     def process(self):
         discard = 0
@@ -129,14 +137,19 @@ class SignalProcessing:
         np.save(path2, results)
 
     def is_ok(self):
-        return True
+        return not self.stop_flag
 
     def main_loop(self):
-        while self.is_ok():
-            self.wait_for_data()
+        try:
+            while self.is_ok():
+                if self.wait_for_data():
+                    self.process()
 
-            self.process()
+                    self.create_feedback_msg()
 
-            self.create_feedback_msg()
+                    self.dump_data()
+        except:
+            logging.error("signalprocessing: Error encountered in main_loop")
+            self.error_encountered.set()
 
-            self.dump_data()
+        logging.info("signalprocessing: exiting main_loop.")

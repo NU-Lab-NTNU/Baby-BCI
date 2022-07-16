@@ -18,7 +18,6 @@ import threading
 
 class EprimeServer:
     def __init__(self, _socket_address, _port) -> None:
-        self.is_ok = False
         self.conn = None
         self.addr = None
 
@@ -29,6 +28,11 @@ class EprimeServer:
         # Events
         self.msg_ready_for_eprime = threading.Event()
         self.trial_finished = threading.Event()
+        self.error_encountered = threading.Event()
+
+        # Flags
+        self.is_ok = False
+        self.stop_flag = False
 
         # Data from operator
         self.msg_for_eprime = None
@@ -50,13 +54,16 @@ class EprimeServer:
             logging.info(f"Connected to client at address: {self.addr}")
             self.is_ok = True
 
-    def _parse_msg(self, byte_msg: bytes) -> Tuple[str, int]:
+    def _parse_msg(self, byte_msg) -> Tuple[str, int]:
         """
         Returns type and value of message.
         Type, description (value):
             - R, recording start (1) / recording stop (0)
             - T, stimulus start (1) / stimulus collision 2s (2) / stimulus collision 3s (3) / stimulus collision 4s (4)
         """
+        if byte_msg is None:
+            return "0", 0
+
         str_msg = byte_msg.decode("utf-8")
         logging.debug(f"Received message: {str_msg}")
         msg_type, msg_value = str_msg[0], int(str_msg[2])
@@ -70,8 +77,15 @@ class EprimeServer:
         Waits for message from E-prime.
         Returns message type and value.
         """
+        msg = None
+        while msg is None and not self.stop_flag:
+            self.s.settimeout(1)
+            try:
+                msg = self.s.recv(5)
+            except socket.timeout:
+                pass
 
-        msg = self.conn.recv(5)
+        self.s.settimeout(None)
         msg_type, msg_value = self._parse_msg(msg)
 
         return msg_type, msg_value
@@ -82,40 +96,56 @@ class EprimeServer:
         logging.debug(f"Message sent: {str_msg}")
         return
 
+    def send_exit_msg(self):
+        exit_msg = "E 0"
+        self.send_msg(exit_msg)
+
     def read_write_loop(self):
-        while self.is_ok:
-            msg_type, msg_value = self.wait_for_eprime_msg()
+        try:
+            while self.is_ok():
+                msg_type, msg_value = self.wait_for_eprime_msg()
 
-            if msg_type == "R":
-                if msg_value == 1:
-                    self.send_msg("R 1\n")
+                if msg_type == "R":
+                    if msg_value == 1:
+                        self.send_msg("R 1\n")
 
-                elif msg_value == 0:
-                    logging.info("Experiment finished, closing tcp connection...")
-                    self.close()
-                    break
+                    elif msg_value == 0:
+                        logging.info("Experiment finished, closing tcp connection...")
+                        self.close()
+                        break
 
-            elif msg_type == "T":
-                if msg_value in [2, 3, 4]:
-                    logging.debug("Stimulus started")
-                    self.speed = msg_value
+                elif msg_type == "T":
+                    if msg_value in [2, 3, 4]:
+                        logging.debug("Stimulus started")
+                        self.speed = msg_value
 
-                elif msg_value == 1:
-                    """
-                    Wait for operator to provide return message
-                    """
-                    self.time_of_trial_finish = time.perf_counter()
-                    logging.info("eprimeserver: setting trial_finished")
-                    self.trial_finished.set()
-                    logging.info("eprimeserver: waiting for msg_ready_for_eprime")
-                    self.msg_ready_for_eprime.wait()  # Should maybe have a timeout to avoid waiting too long
-                    # self.send_msg("E " + str(self.speed) + "\n")
-                    self.send_msg(self.msg_for_eprime)
-                    logging.info("eprimeserver: clearing msg_ready_for_eprime")
-                    self.msg_ready_for_eprime.clear()
+                    elif msg_value == 1:
+                        """
+                        Wait for operator to provide return message
+                        """
+                        self.time_of_trial_finish = time.perf_counter()
+                        logging.info("eprimeserver: setting trial_finished")
+                        self.trial_finished.set()
+                        logging.info("eprimeserver: waiting for msg_ready_for_eprime")
+                        self.msg_ready_for_eprime.wait()  # Should maybe have a timeout to avoid waiting too long
+                        # self.send_msg("E " + str(self.speed) + "\n")
+                        self.send_msg(self.msg_for_eprime)
+                        logging.info("eprimeserver: clearing msg_ready_for_eprime")
+                        self.msg_ready_for_eprime.clear()
+
+            self.send_exit_msg()
+
+        except:
+            logging.error("eprimeserver: Error encountered in read_write_loop")
+            self.error_encountered.set()
+
+        logging.info("eprimeserver: exiting read_write_loop")
 
     def is_ok(self):
-        return self.is_ok
+        return self.is_ok and not self.stop_flag
+
+    def set_stop_flag(self):
+        self.stop_flag = True
 
     def close(self):
         self.conn.close()

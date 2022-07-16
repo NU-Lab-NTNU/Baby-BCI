@@ -1,4 +1,5 @@
 import socket
+import threading
 import time
 from collections import deque
 import struct
@@ -195,8 +196,12 @@ class AmpServerClient:
         else:  # NA400
             self.scaling_factor = 0.00009313225
 
+        # Flags
         self.connected = False
         self.stop_flag = False
+
+        # Events
+        self.error_encountered = threading.Event()
 
         # Should probably be its own class
         self.deque_num_samples = self.sample_rate * 3
@@ -377,51 +382,59 @@ class AmpServerClient:
         counter = 0
         start_time = time.perf_counter()
 
-        while self.stream_good() and not self.stop_flag:
-            # Check sample_rate
-            header_buf = None
-            while header_buf is None:
-                header_buf = self.recvfrom("data", self.data_header.size)
+        try:
+            while self.stream_good() and not self.stop_flag:
+                # Check sample_rate
+                header_buf = None
+                while header_buf is None:
+                    header_buf = self.recvfrom("data", self.data_header.size)
 
-            self.data_header.read_var(header_buf)
+                self.data_header.read_var(header_buf)
 
-            first_packet = PacketFormat1()
-            packet = PacketFormat1()
-            n_samples = int(self.data_header.length / first_packet.size)
+                first_packet = PacketFormat1()
+                packet = PacketFormat1()
+                n_samples = int(self.data_header.length / first_packet.size)
 
-            if self.data_header.length % first_packet.size:
-                logging.warning(
-                    f"data_header.length is not a multiple of packet.size\ndata_header.length: {self.data_header.length}\npacket.size: {first_packet.size}\n"
-                )
-
-            for _ in range(n_samples):
-                # read packet
-                packet_buf = None
-                while packet_buf is None:
-                    packet_buf = self.recvfrom("data", first_packet.size)
-
-                if not self.first_packet_received:
-                    first_packet.read_packet(packet_buf)
-                    sample = first_packet.eeg
-                    self.first_packet_received = True
-                else:
-                    sample = packet.read_eeg(packet_buf)
-
-                # push eeg_data to ring_buffer
-                self.eeg_deque.extend(sample)
-
-                counter = counter + 1
-                if counter % 1000 == 0:
-                    elapsed_1000 = time.perf_counter() - start_time
-                    start_time = time.perf_counter()
-                    self.rec_sample_rate = 1000.0 / elapsed_1000
-                    logging.info(
-                        f"Receiving sample rate: {round(self.rec_sample_rate, 2)} Hz"
+                if self.data_header.length % first_packet.size:
+                    logging.warning(
+                        f"data_header.length is not a multiple of packet.size\ndata_header.length: {self.data_header.length}\npacket.size: {first_packet.size}\n"
                     )
 
-        self.stop_listening()
-        self.stop_flag = False
-        self.first_packet_received = False
+                for _ in range(n_samples):
+                    # read packet
+                    packet_buf = None
+                    while packet_buf is None:
+                        packet_buf = self.recvfrom("data", first_packet.size)
+
+                    if not self.first_packet_received:
+                        first_packet.read_packet(packet_buf)
+                        sample = first_packet.eeg
+                        self.first_packet_received = True
+                    else:
+                        sample = packet.read_eeg(packet_buf)
+
+                    # push eeg_data to ring_buffer
+                    self.eeg_deque.extend(sample)
+
+                    counter = counter + 1
+                    if counter % 1000 == 0:
+                        elapsed_1000 = time.perf_counter() - start_time
+                        start_time = time.perf_counter()
+                        self.rec_sample_rate = 1000.0 / elapsed_1000
+                        logging.info(
+                            f"Receiving sample rate: {round(self.rec_sample_rate, 2)} Hz"
+                        )
+
+                    if self.stop_flag:
+                        break
+
+            self.stop_listening()
+            self.stop_flag = False
+            self.first_packet_received = False
+
+        except:
+            logging.error("ampclient: Error encountered in read_packet_format_1")
+            self.error_encountered.set()
 
     def deque_to_numpy(self, n):
         """
