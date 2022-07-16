@@ -5,7 +5,6 @@ from util import read_config
 
 import logging
 from threading import Thread
-import time
 
 """
     Contains the class Operator. Manages communication and timing of threads.
@@ -50,7 +49,7 @@ class Operator:
             int(config["Global"]["sample_rate"]),
             int(config["SignalProcessing"]["time_per_trial"]),
             int(config["SignalProcessing"]["time_start"]),
-            int(config["SignalProcessing"]["time_pre_collision"]),
+            int(config["SignalProcessing"]["time_stop"]),
             config["SignalProcessing"]["preprocessing_fname"],
             config["SignalProcessing"]["classifier_fname"],
             config["SignalProcessing"]["regressor_fname"],
@@ -102,7 +101,6 @@ class Operator:
 
         return False
 
-
     def send_return_msg_eprime(self):
         self.eprimeserver.msg_for_eprime = self.sigproc.feedback_msg
         logging.info("operator: setting msg_ready_for_eprime")
@@ -113,9 +111,15 @@ class Operator:
     """
 
     def get_trial_eeg(self):
-        self.sigproc.eeg, self.time_of_data_fetched = self.ampclient.deque_to_numpy(self.sigproc.n_samples)
-        self.sigproc.delay = (self.time_of_data_fetched - self.eprimeserver.time_of_trial_finish) * 1000
-        logging.info(f"Delay E-prime to AmpServer client: {round(self.sigproc.delay, 2)} milliseconds")
+        self.sigproc.eeg, self.time_of_data_fetched = self.ampclient.deque_to_numpy(
+            self.sigproc.n_samples
+        )
+        self.sigproc.delay = (
+            self.time_of_data_fetched - self.eprimeserver.time_of_trial_finish
+        ) * 1000
+        logging.info(
+            f"Delay E-prime to AmpServer client: {round(self.sigproc.delay, 2)} milliseconds"
+        )
         logging.info("operator: setting trial_data_ready")
         self.sigproc.trial_data_ready.set()
 
@@ -137,10 +141,10 @@ class Operator:
 
         return False
 
-
     """
         Supervise stuff
     """
+
     def check_submodules(self):
         if self.sigproc.error_encountered.is_set():
             logging.error("operator: signalprocessing encountered an error")
@@ -155,16 +159,16 @@ class Operator:
             self.is_ok = False
 
         if self.is_ok:
-            return True
+            return False
 
         self.ampclient.set_stop_flag()
         self.eprimeserver.set_stop_flag()
         self.sigproc.set_stop_flag()
-        return False
+        return True
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
     operator = Operator()
     operator.ampclient.start_listening()

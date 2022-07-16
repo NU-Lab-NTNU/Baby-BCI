@@ -6,7 +6,7 @@ import struct
 import numpy as np
 import logging
 import itertools
-
+import traceback
 
 """
     Contains two classes for TCP communication between EGI AmpServer and external computer.
@@ -433,7 +433,9 @@ class AmpServerClient:
             self.first_packet_received = False
 
         except:
-            logging.error("ampclient: Error encountered in read_packet_format_1")
+            logging.error(
+                f"ampclient: Error encountered in read_packet_format_1: {traceback.format_exc()}"
+            )
             self.error_encountered.set()
 
     def deque_to_numpy(self, n):
@@ -443,7 +445,10 @@ class AmpServerClient:
         m = len(self.eeg_deque)
         time_read = time.perf_counter()
         tmp = list(itertools.islice(self.eeg_deque, (m - n * self.n_channels), m))
-        return self.scaling_factor * np.array(tmp).reshape((self.n_channels, n)), time_read
+        return (
+            self.scaling_factor * np.array(tmp).reshape((self.n_channels, n)),
+            time_read,
+        )
 
     def start_listening(self):
         self._send_data_command("cmd_ListenToAmp", str(self.amp_id), "0", "0")

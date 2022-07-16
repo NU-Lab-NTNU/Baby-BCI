@@ -3,6 +3,8 @@ import threading
 import time
 import os
 import logging
+import util
+import traceback
 
 """
     Contains the class SignalProcessing (should maybe be renamed).
@@ -25,7 +27,7 @@ class SignalProcessing:
         _sample_rate,
         _time_per_trial,
         _time_start,
-        _time_pre_collision,
+        _time_stop,
         _preprocessing_fname,
         _classifier_fname,
         _regressor_fname,
@@ -35,7 +37,7 @@ class SignalProcessing:
         self.sample_rate = _sample_rate
         self.time_per_trial = _time_per_trial  # time in seconds per trial
         self.time_start = _time_start
-        self.time_pre_collision = _time_pre_collision
+        self.time_stop = _time_stop
         self.n_samples = round(self.time_per_trial * self.sample_rate / 1000.0)
         self.eeg = np.zeros(
             (self.n_channels, self.n_samples)
@@ -100,11 +102,13 @@ class SignalProcessing:
         # Acount for delay
         if self.delay > self.time_per_trial - self.time_start:
             discard = 1
-            logging.warning("signalprocessing: Too large delay, trial discarded. Increase time_per_trial or speed up the system somehow.")
+            logging.warning(
+                "signalprocessing: Too large delay, trial discarded. Increase time_per_trial or speed up the system somehow."
+            )
         else:
-            start = self.time_per_trial - self.time_start - self.delay
-            stop = self.time_per_trial - self.time_stop - self.delay
-            eeg = self.eeg[:,start:stop]
+            start = int(self.time_per_trial - self.time_start - self.delay)
+            stop = int(self.time_per_trial - self.time_stop - self.delay)
+            eeg = self.eeg[:, start:stop]
 
         if not discard and eeg is not None:
             # Preprocessing
@@ -139,6 +143,9 @@ class SignalProcessing:
     def is_ok(self):
         return not self.stop_flag
 
+    def set_stop_flag(self):
+        self.stop_flag = True
+
     def main_loop(self):
         try:
             while self.is_ok():
@@ -149,7 +156,29 @@ class SignalProcessing:
 
                     self.dump_data()
         except:
-            logging.error("signalprocessing: Error encountered in main_loop")
+            logging.error(
+                f"signalprocessing: Error encountered in main_loop: {traceback.format_exc()}"
+            )
             self.error_encountered.set()
 
         logging.info("signalprocessing: exiting main_loop.")
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    config = util.read_config("config.ini")
+
+    sigproc = SignalProcessing(
+        int(config["Global"]["n_channels"]),
+        int(config["Global"]["sample_rate"]),
+        int(config["SignalProcessing"]["time_per_trial"]),
+        int(config["SignalProcessing"]["time_start"]),
+        int(config["SignalProcessing"]["time_pre_collision"]),
+        config["SignalProcessing"]["preprocessing_fname"],
+        config["SignalProcessing"]["classifier_fname"],
+        config["SignalProcessing"]["regressor_fname"],
+    )
+
+    sigproc.load_models()
+
+    sigproc.main_loop()

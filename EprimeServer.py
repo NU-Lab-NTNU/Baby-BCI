@@ -3,6 +3,8 @@ from typing import Tuple
 import logging
 import time
 import threading
+import util
+import traceback
 
 """
     Contains the class EprimeServer, providing API for communication with E-Prime
@@ -33,6 +35,7 @@ class EprimeServer:
         # Flags
         self.is_ok = False
         self.stop_flag = False
+        self.is_connected = False
 
         # Data from operator
         self.msg_for_eprime = None
@@ -53,6 +56,7 @@ class EprimeServer:
         if self.conn is not None:
             logging.info(f"Connected to client at address: {self.addr}")
             self.is_ok = True
+            self.is_connected = True
 
     def _parse_msg(self, byte_msg) -> Tuple[str, int]:
         """
@@ -81,7 +85,7 @@ class EprimeServer:
         while msg is None and not self.stop_flag:
             self.s.settimeout(1)
             try:
-                msg = self.s.recv(5)
+                msg = self.conn.recv(5)
             except socket.timeout:
                 pass
 
@@ -102,7 +106,7 @@ class EprimeServer:
 
     def read_write_loop(self):
         try:
-            while self.is_ok():
+            while self.is_good():
                 msg_type, msg_value = self.wait_for_eprime_msg()
 
                 if msg_type == "R":
@@ -133,15 +137,60 @@ class EprimeServer:
                         logging.info("eprimeserver: clearing msg_ready_for_eprime")
                         self.msg_ready_for_eprime.clear()
 
-            self.send_exit_msg()
+            if self.is_connected:
+                self.send_exit_msg()
 
         except:
-            logging.error("eprimeserver: Error encountered in read_write_loop")
+            logging.error(
+                f"eprimeserver: Error encountered in read_write_loop: {traceback.format_exc()}"
+            )
             self.error_encountered.set()
 
         logging.info("eprimeserver: exiting read_write_loop")
 
-    def is_ok(self):
+    def read_write_loop_test(self):
+        # try:
+        while self.is_good():
+            msg_type, msg_value = self.wait_for_eprime_msg()
+
+            if msg_type == "R":
+                if msg_value == 1:
+                    self.send_msg("R 1\n")
+
+                elif msg_value == 0:
+                    logging.info("Experiment finished, closing tcp connection...")
+                    self.close()
+                    break
+
+            elif msg_type == "T":
+                if msg_value in [2, 3, 4]:
+                    logging.debug("Stimulus started")
+                    self.speed = msg_value
+
+                elif msg_value == 1:
+                    """
+                    Wait for operator to provide return message
+                    """
+                    self.time_of_trial_finish = time.perf_counter()
+                    logging.info("eprimeserver: setting trial_finished")
+                    self.trial_finished.set()
+                    logging.info("eprimeserver: waiting for msg_ready_for_eprime")
+                    # self.msg_ready_for_eprime.wait()  # Should maybe have a timeout to avoid waiting too long
+                    self.send_msg("E " + str(self.speed) + "\n")
+                    # self.send_msg(self.msg_for_eprime)
+                    logging.info("eprimeserver: clearing msg_ready_for_eprime")
+                    self.msg_ready_for_eprime.clear()
+
+        if self.is_connected:
+            self.send_exit_msg()
+
+        # except:
+        #    logging.error("eprimeserver: Error encountered in read_write_loop")
+        #    self.error_encountered.set()
+
+        logging.info("eprimeserver: exiting read_write_loop")
+
+    def is_good(self):
         return self.is_ok and not self.stop_flag
 
     def set_stop_flag(self):
@@ -149,6 +198,7 @@ class EprimeServer:
 
     def close(self):
         self.conn.close()
+        self.connected = False
 
     def deconstruct(self):
         self.close()
@@ -157,24 +207,13 @@ class EprimeServer:
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
-    tcp = EprimeServer()
-    tcp.create_socket()
+    config = util.read_config("config.ini")
 
-    while tcp.is_ok:
-        msg_type, msg_value = tcp.wait_for_eprime_msg()
+    eprimeserver = EprimeServer(
+        config["E-Prime"]["socket_address"],
+        int(config["E-Prime"]["port"]),
+    )
 
-        if msg_type == "R":
-            if msg_value == 1:
-                tcp.send_msg("R 1\n")
+    eprimeserver.create_socket()
 
-            elif msg_value == 0:
-                logging.info("Experiment finished, closing tcp connection...")
-                tcp.close()
-                break
-
-        elif msg_type == "T":
-            if msg_value in [2, 3, 4]:
-                tcp.speed = msg_value
-
-            elif msg_value == 1:
-                tcp.send_msg("E " + str(tcp.speed) + "\n")
+    eprimeserver.read_write_loop_test()
