@@ -1,4 +1,7 @@
 # NU-BCI-v4
+WARNING:
+  - The project is currently in an unfinished, minimally tested, state and in rapid development
+
 The goal of this project is twofold:
   - Create an interface with EGI AmpServer with as little unnecessary complexity as possible.
   - Create a BCI-system which is easily modifiable and accessible to non-programmers (ex. psychology scientists, ML-people).
@@ -11,7 +14,7 @@ Implementation:
  TODO:
   - Add UI
   - Error handling
+  - Create general parent class for submodules
   
 Notes:
   - The AmpServerClient module is heavily inspired by [labstreaminglayer/App-EGIAmpServer](https://github.com/labstreaminglayer/App-EGIAmpServer)
-  - The project is currently in an unfinished, minimally tested, state and in rapid development
