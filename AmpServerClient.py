@@ -414,7 +414,7 @@ class AmpServerClient:
                         sample = packet.read_eeg(packet_buf)
 
                     # push eeg_data to ring_buffer
-                    self.eeg_deque.extend(sample)
+                    self.eeg_deque.extend(sample[0:self.n_channels])
 
                     counter = counter + 1
                     if counter % 1000 == 0:

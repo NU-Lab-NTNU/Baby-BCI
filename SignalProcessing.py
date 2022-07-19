@@ -31,6 +31,7 @@ class SignalProcessing:
         _preprocessing_fname,
         _classifier_fname,
         _regressor_fname,
+        _experiment_fname,
     ) -> None:
         # eeg data array
         self.n_channels = _n_channels
@@ -44,10 +45,11 @@ class SignalProcessing:
         )  # np.array holding eeg data for one trial
         self.delay = 0
 
-        # Filenames for models
+        # Filenames
         self.preprocessing_fname = _preprocessing_fname
         self.classifier_fname = _classifier_fname
         self.regressor_fname = _regressor_fname
+        self.experiment_fname = _experiment_fname
 
         # Events
         self.trial_data_ready = threading.Event()
@@ -67,7 +69,7 @@ class SignalProcessing:
         self.feedback_msg = None
 
         # File stuff
-        self.folder_path = "data/" + str(np.random.randint(0, 9999))
+        self.folder_path = "data/" + self.experiment_fname
         os.mkdir(self.folder_path)
 
     def load_models(self):
