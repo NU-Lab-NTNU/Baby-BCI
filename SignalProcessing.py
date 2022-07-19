@@ -70,7 +70,12 @@ class SignalProcessing:
 
         # File stuff
         self.folder_path = "data/" + self.experiment_fname
-        os.mkdir(self.folder_path)
+        if os.path.isdir(self.folder_path):
+            logging.warning(f"signalprocessing: folder {self.folder_path} already exists, data might be overwritten.")
+
+        else:
+            os.mkdir(self.folder_path)
+            logging.info(f"signalprocessing: created data folder: {self.folder_path}")
 
     def load_models(self):
         """
