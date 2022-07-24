@@ -37,6 +37,7 @@ class Operator:
         self.ampclient = AmpServerClient(
             int(config["Global"]["sample_rate"]),
             int(config["Global"]["n_channels"]),
+            int(config["AmpServer"]["ringbuffer_time_capacity"]),
             config["AmpServer"]["socket_address"],
             int(config["AmpServer"]["command_port"]),
             int(config["AmpServer"]["notification_port"]),
@@ -111,7 +112,7 @@ class Operator:
     """
 
     def get_trial_eeg(self):
-        self.sigproc.eeg, self.time_of_data_fetched = self.ampclient.deque_to_numpy(
+        self.sigproc.eeg, self.time_of_data_fetched = self.ampclient.get_samples(
             self.sigproc.n_samples
         )
         self.sigproc.delay = (
