@@ -1,4 +1,4 @@
-data/*
 __pycache__/*
-config.ini
 images/*
+data/*
+!review.py
