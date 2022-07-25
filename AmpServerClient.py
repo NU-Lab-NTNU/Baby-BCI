@@ -7,6 +7,7 @@ import numpy as np
 import logging
 import itertools
 import traceback
+from EEGBuffer import RingBuffer
 
 """
     Contains two classes for TCP communication between EGI AmpServer and external computer.
@@ -24,6 +25,57 @@ import traceback
 
     Author: Vegard Kjeka Broen (NTNU)
 """
+
+
+class PacketFormat1:
+    def __init__(self) -> None:
+        # Total 1152 bytes
+        self.header = None  # uint32_t[8]                           : DINS (Digital Inputs) 1-8/9-16 at bytes 24/25; net type at byte 26.
+        self.eeg = None  # float[256], starting at 32nd byte     : EEG data
+        self.pib = None  # float[7], starting at 1056th byte     : PIB data
+        self.unused1 = None  # float, starting at 1084th byte        : N/A
+        self.ref = None  # float, starting at 1088th byte        : Reference channel
+        self.com = None  # float, starting at 1092nd byte        : Common channel
+        self.unused2 = None  # float, starting at 1096th byte        : N/A
+        self.padding = None  # float[13], starting at 1100th byte    : N/A
+
+        self.size = 1152
+
+    def read_packet(self, buf):
+        fmt = ">8I"
+        self.header = struct.unpack(fmt, buf[0:32])
+        fmt = ">256f"
+        self.eeg = np.array(struct.unpack(fmt, buf[32:1056]))
+        fmt = ">7f"
+        self.pib = struct.unpack(fmt, buf[1056:1084])
+        fmt = ">f"
+        self.unused1 = struct.unpack(fmt, buf[1084:1088])
+        self.ref = struct.unpack(fmt, buf[1088:1092])
+        self.com = struct.unpack(fmt, buf[1092:1096])
+        self.unused2 = struct.unpack(fmt, buf[1096:1100])
+        fmt = ">13f"
+        self.padding = struct.unpack(fmt, buf[1100:])
+
+    def read_eeg(self, buf):
+        fmt = ">256f"
+        return np.array(struct.unpack(fmt, buf[32:1056]))
+
+class AmpDataPacketHeader:
+    def __init__(self) -> None:
+        # Total 16 bytes
+        self.amp_id = None  # int64_t
+        self.length = None  # uint64_t, starting at 8th byte
+        self.size = 16
+
+    def read_amp_id(self, buf):
+        self.amp_id = int.from_bytes(buf, "big")
+
+    def read_length(self, buf):
+        self.length = int.from_bytes(buf, "big")
+
+    def read_var(self, buf):
+        self.read_amp_id(buf[0:8])
+        self.read_length(buf[8:])
 
 def parse_status_message(msg, start_indent=-1):
     """
@@ -66,56 +118,6 @@ def parse_status_message(msg, start_indent=-1):
             ret_msg = ret_msg + c
 
     return ret_msg + "\n"
-
-class PacketFormat1:
-    def __init__(self) -> None:
-        # Total 1152 bytes
-        self.header = None  # uint32_t[8]                           : DINS (Digital Inputs) 1-8/9-16 at bytes 24/25; net type at byte 26.
-        self.eeg = None  # float[256], starting at 32nd byte     : EEG data
-        self.pib = None  # float[7], starting at 1056th byte     : PIB data
-        self.unused1 = None  # float, starting at 1084th byte        : N/A
-        self.ref = None  # float, starting at 1088th byte        : Reference channel
-        self.com = None  # float, starting at 1092nd byte        : Common channel
-        self.unused2 = None  # float, starting at 1096th byte        : N/A
-        self.padding = None  # float[13], starting at 1100th byte    : N/A
-
-        self.size = 1152
-
-    def read_packet(self, buf):
-        fmt = ">8I"
-        self.header = struct.unpack(fmt, buf[0:32])
-        fmt = ">256f"
-        self.eeg = struct.unpack(fmt, buf[32:1056])
-        fmt = ">7f"
-        self.pib = struct.unpack(fmt, buf[1056:1084])
-        fmt = ">f"
-        self.unused1 = struct.unpack(fmt, buf[1084:1088])
-        self.ref = struct.unpack(fmt, buf[1088:1092])
-        self.com = struct.unpack(fmt, buf[1092:1096])
-        self.unused2 = struct.unpack(fmt, buf[1096:1100])
-        fmt = ">13f"
-        self.padding = struct.unpack(fmt, buf[1100:])
-
-    def read_eeg(self, buf):
-        fmt = ">256f"
-        return struct.unpack(fmt, buf[32:1056])
-
-class AmpDataPacketHeader:
-    def __init__(self) -> None:
-        # Total 16 bytes
-        self.amp_id = None  # int64_t
-        self.length = None  # uint64_t, starting at 8th byte
-        self.size = 16
-
-    def read_amp_id(self, buf):
-        self.amp_id = int.from_bytes(buf, "big")
-
-    def read_length(self, buf):
-        self.length = int.from_bytes(buf, "big")
-
-    def read_var(self, buf):
-        self.read_amp_id(buf[0:8])
-        self.read_length(buf[8:])
 
 class AmpServerSocket:
     def __init__(self, address, port, name) -> None:
@@ -160,12 +162,12 @@ class AmpServerSocket:
         self.s.shutdown()
         self.s.close()
 
-
 class AmpServerClient:
     def __init__(
         self,
         _sample_rate,
         _n_channels,
+        _ringbuffer_time_capacity,
         _socket_address,
         _command_port,
         _notification_port,
@@ -200,11 +202,8 @@ class AmpServerClient:
         self.error_encountered = threading.Event()
 
         # Should probably be its own class
-        self.deque_num_samples = self.sample_rate * 3
-        self.eeg_deque = deque(
-            [0.0 for _ in range(self.n_channels * self.deque_num_samples)],
-            maxlen=self.n_channels * self.deque_num_samples,
-        )
+        self.n_samples = self.sample_rate * _ringbuffer_time_capacity
+        self.ringbuf = RingBuffer(self.n_samples, self.n_channels)
 
         # Stream_info
         self.first_packet_received = False
@@ -372,7 +371,6 @@ class AmpServerClient:
         """
         Loop for receiving data packets
         TODO:
-            - Monitor incoming sample rate
             -
         """
         counter = 0
@@ -410,7 +408,7 @@ class AmpServerClient:
                         sample = packet.read_eeg(packet_buf)
 
                     # push eeg_data to ring_buffer
-                    self.eeg_deque.extend(sample[0:self.n_channels])
+                    self.ringbuf.write_sample(sample)
 
                     counter = counter + 1
                     if counter % 1000 == 0:
@@ -434,17 +432,11 @@ class AmpServerClient:
             )
             self.error_encountered.set()
 
-    def deque_to_numpy(self, n):
+    def get_samples(self, n):
         """
-        Converts last n samples to a numpy array, scale to get microvolts
+        Get last n samples in ringbuf, scale to get microvolts
         """
-        m = len(self.eeg_deque)
-        time_read = time.perf_counter()
-        tmp = list(itertools.islice(self.eeg_deque, (m - n * self.n_channels), m))
-        return (
-            self.scaling_factor * np.array(tmp).reshape((self.n_channels, n)),
-            time_read,
-        )
+        return self.ringbuf.get_samples(n)
 
     def start_listening(self):
         self._send_data_command("cmd_ListenToAmp", str(self.amp_id), "0", "0")
@@ -467,12 +459,12 @@ if __name__ == "__main__":
 
     amp_client.read_packet_format_1()
 
-    eeg_arr = np.zeros((amp_client.n_channels, amp_client.deque_num_samples))
+    eeg_arr = np.zeros((amp_client.n_channels, amp_client.n_samples))
 
     for i in range(amp_client.n_channels):
-        for j in range(amp_client.deque_num_samples):
+        for j in range(amp_client.n_samples):
             idx = j * amp_client.n_channels + i
-            eeg_arr[i, j] = amp_client.eeg_deque[idx]
+            eeg_arr[i, j] = amp_client.ringbuf[idx]
 
     np.save("data3s.npy", eeg_arr)
 
