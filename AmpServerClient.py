@@ -25,59 +25,6 @@ import traceback
     Author: Vegard Kjeka Broen (NTNU)
 """
 
-
-class PacketFormat1:
-    def __init__(self) -> None:
-        # Total 1152 bytes
-        self.header = None  # uint32_t[8]                           : DINS (Digital Inputs) 1-8/9-16 at bytes 24/25; net type at byte 26.
-        self.eeg = None  # float[256], starting at 32nd byte     : EEG data
-        self.pib = None  # float[7], starting at 1056th byte     : PIB data
-        self.unused1 = None  # float, starting at 1084th byte        : N/A
-        self.ref = None  # float, starting at 1088th byte        : Reference channel
-        self.com = None  # float, starting at 1092nd byte        : Common channel
-        self.unused2 = None  # float, starting at 1096th byte        : N/A
-        self.padding = None  # float[13], starting at 1100th byte    : N/A
-
-        self.size = 1152
-
-    def read_packet(self, buf):
-        fmt = ">8I"
-        self.header = struct.unpack(fmt, buf[0:32])
-        fmt = ">256f"
-        self.eeg = struct.unpack(fmt, buf[32:1056])
-        fmt = ">7f"
-        self.pib = struct.unpack(fmt, buf[1056:1084])
-        fmt = ">f"
-        self.unused1 = struct.unpack(fmt, buf[1084:1088])
-        self.ref = struct.unpack(fmt, buf[1088:1092])
-        self.com = struct.unpack(fmt, buf[1092:1096])
-        self.unused2 = struct.unpack(fmt, buf[1096:1100])
-        fmt = ">13f"
-        self.padding = struct.unpack(fmt, buf[1100:])
-
-    def read_eeg(self, buf):
-        fmt = ">256f"
-        return struct.unpack(fmt, buf[32:1056])
-
-
-class AmpDataPacketHeader:
-    def __init__(self) -> None:
-        # Total 16 bytes
-        self.amp_id = None  # int64_t
-        self.length = None  # uint64_t, starting at 8th byte
-        self.size = 16
-
-    def read_amp_id(self, buf):
-        self.amp_id = int.from_bytes(buf, "big")
-
-    def read_length(self, buf):
-        self.length = int.from_bytes(buf, "big")
-
-    def read_var(self, buf):
-        self.read_amp_id(buf[0:8])
-        self.read_length(buf[8:])
-
-
 def parse_status_message(msg, start_indent=-1):
     """
     Input assumed to be string, not byte object
@@ -120,6 +67,55 @@ def parse_status_message(msg, start_indent=-1):
 
     return ret_msg + "\n"
 
+class PacketFormat1:
+    def __init__(self) -> None:
+        # Total 1152 bytes
+        self.header = None  # uint32_t[8]                           : DINS (Digital Inputs) 1-8/9-16 at bytes 24/25; net type at byte 26.
+        self.eeg = None  # float[256], starting at 32nd byte     : EEG data
+        self.pib = None  # float[7], starting at 1056th byte     : PIB data
+        self.unused1 = None  # float, starting at 1084th byte        : N/A
+        self.ref = None  # float, starting at 1088th byte        : Reference channel
+        self.com = None  # float, starting at 1092nd byte        : Common channel
+        self.unused2 = None  # float, starting at 1096th byte        : N/A
+        self.padding = None  # float[13], starting at 1100th byte    : N/A
+
+        self.size = 1152
+
+    def read_packet(self, buf):
+        fmt = ">8I"
+        self.header = struct.unpack(fmt, buf[0:32])
+        fmt = ">256f"
+        self.eeg = struct.unpack(fmt, buf[32:1056])
+        fmt = ">7f"
+        self.pib = struct.unpack(fmt, buf[1056:1084])
+        fmt = ">f"
+        self.unused1 = struct.unpack(fmt, buf[1084:1088])
+        self.ref = struct.unpack(fmt, buf[1088:1092])
+        self.com = struct.unpack(fmt, buf[1092:1096])
+        self.unused2 = struct.unpack(fmt, buf[1096:1100])
+        fmt = ">13f"
+        self.padding = struct.unpack(fmt, buf[1100:])
+
+    def read_eeg(self, buf):
+        fmt = ">256f"
+        return struct.unpack(fmt, buf[32:1056])
+
+class AmpDataPacketHeader:
+    def __init__(self) -> None:
+        # Total 16 bytes
+        self.amp_id = None  # int64_t
+        self.length = None  # uint64_t, starting at 8th byte
+        self.size = 16
+
+    def read_amp_id(self, buf):
+        self.amp_id = int.from_bytes(buf, "big")
+
+    def read_length(self, buf):
+        self.length = int.from_bytes(buf, "big")
+
+    def read_var(self, buf):
+        self.read_amp_id(buf[0:8])
+        self.read_length(buf[8:])
 
 class AmpServerSocket:
     def __init__(self, address, port, name) -> None:
