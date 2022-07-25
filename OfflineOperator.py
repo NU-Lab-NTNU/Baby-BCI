@@ -1,11 +1,10 @@
-from DummyAmpServerClient import DummyAmpServerClient
-from DummyEprimeServer import DummyEprimeServer
-from SignalProcessing import SignalProcessing
-from util import read_config
+from modules.DummyAmpServerClient import DummyAmpServerClient
+from modules.DummyEprimeServer import DummyEprimeServer
+from modules.SignalProcessing import SignalProcessing
+from modules.helpers.util import read_config
 
 import logging
 from threading import Thread
-import traceback
 
 
 

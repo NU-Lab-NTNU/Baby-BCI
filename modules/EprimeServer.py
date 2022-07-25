@@ -1,9 +1,9 @@
-from numpy import random
+import socket
 from typing import Tuple
 import logging
 import time
 import threading
-import util
+import helpers.util as util
 import traceback
 
 """
@@ -18,8 +18,11 @@ import traceback
 """
 
 
-class DummyEprimeServer:
+class EprimeServer:
     def __init__(self, _socket_address, _port) -> None:
+        self.conn = None
+        self.addr = None
+
         # Socket
         self.socket_address = _socket_address
         self.port = _port
@@ -30,13 +33,9 @@ class DummyEprimeServer:
         self.error_encountered = threading.Event()
 
         # Flags
-        self.is_ok = True
+        self.is_ok = False
         self.stop_flag = False
         self.is_connected = False
-        self.experiment_started = False
-        self.experiment_finished = False
-        self.trial_started = False
-        self.n_trials = 0
 
         # Data from operator
         self.msg_for_eprime = None
@@ -47,11 +46,17 @@ class DummyEprimeServer:
         # Trial data
         self.speed = 0
 
-        # RNG
-        self.rng = random.default_rng()
-
     def create_socket(self):
-        return
+        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.s.bind((self.socket_address, self.port))
+        logging.info(f"Created socket at {self.s.getsockname()}")
+        logging.info("Waiting for E-prime to connect...")
+        self.s.listen(1)
+        self.conn, self.addr = self.s.accept()
+        if self.conn is not None:
+            logging.info(f"Connected to client at address: {self.addr}")
+            self.is_ok = True
+            self.is_connected = True
 
     def _parse_msg(self, byte_msg) -> Tuple[str, int]:
         """
@@ -76,28 +81,16 @@ class DummyEprimeServer:
         Waits for message from E-prime.
         Returns message type and value.
         """
-        msg_type = None
-        msg_value = None
-        if not self.experiment_started:
-            msg_type = "R"
-            msg_value = 1
-            time.sleep(1)
+        msg = None
+        while msg is None and not self.stop_flag:
+            self.s.settimeout(1)
+            try:
+                msg = self.conn.recv(5)
+            except socket.timeout:
+                pass
 
-        else:
-            if self.trial_started:
-                msg_type = "T"
-                msg_value = 1
-                self.n_trials = self.n_trials + 1
-
-            else:
-                if self.n_trials > 20:
-                    msg_type = "R"
-                    msg_value = 0
-
-                else:
-                    time.sleep(1)
-                    msg_type = "T"
-                    msg_value = self.rng.integers(2, 5)
+        self.s.settimeout(None)
+        msg_type, msg_value = self._parse_msg(msg)
 
         return msg_type, msg_value
 
@@ -118,31 +111,34 @@ class DummyEprimeServer:
 
                 if msg_type == "R":
                     if msg_value == 1:
-                        self.experiment_started = True
+                        self.send_msg("R 1\n")
 
                     elif msg_value == 0:
                         logging.info("Experiment finished, closing tcp connection...")
-                        self.experiment_finished = True
+                        self.close()
                         break
 
                 elif msg_type == "T":
                     if msg_value in [2, 3, 4]:
                         logging.debug("Stimulus started")
                         self.speed = msg_value
-                        self.trial_started = True
 
                     elif msg_value == 1:
                         """
                         Wait for operator to provide return message
                         """
-                        self.trial_started = False
                         self.time_of_trial_finish = time.perf_counter()
                         logging.info("eprimeserver: setting trial_finished")
                         self.trial_finished.set()
                         logging.info("eprimeserver: waiting for msg_ready_for_eprime")
                         self.msg_ready_for_eprime.wait()  # Should maybe have a timeout to avoid waiting too long
+                        # self.send_msg("E " + str(self.speed) + "\n")
+                        self.send_msg(self.msg_for_eprime)
                         logging.info("eprimeserver: clearing msg_ready_for_eprime")
                         self.msg_ready_for_eprime.clear()
+
+            if self.is_connected:
+                self.send_exit_msg()
 
         except:
             logging.error(
@@ -213,7 +209,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     config = util.read_config("config.ini")
 
-    eprimeserver = DummyEprimeServer(
+    eprimeserver = EprimeServer(
         config["E-Prime"]["socket_address"],
         int(config["E-Prime"]["port"]),
     )

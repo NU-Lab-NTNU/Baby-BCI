@@ -1,7 +1,7 @@
-from AmpServerClient import AmpServerClient
-from EprimeServer import EprimeServer
-from SignalProcessing import SignalProcessing
-from util import read_config
+from modules.AmpServerClient import AmpServerClient
+from modules.EprimeServer import EprimeServer
+from modules.SignalProcessing import SignalProcessing
+from modules.helpers.util import read_config
 
 import logging
 from threading import Thread

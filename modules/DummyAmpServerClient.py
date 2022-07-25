@@ -1,5 +1,5 @@
 import numpy as np
-from EEGBuffer import RingBuffer, DequeBuffer
+from helpers.EEGBuffer import RingBuffer, DequeBuffer
 import time
 import threading
 import logging

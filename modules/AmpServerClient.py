@@ -1,13 +1,11 @@
 import socket
 import threading
 import time
-from collections import deque
 import struct
 import numpy as np
 import logging
-import itertools
 import traceback
-from EEGBuffer import RingBuffer
+from helpers.EEGBuffer import RingBuffer
 
 """
     Contains two classes for TCP communication between EGI AmpServer and external computer.
