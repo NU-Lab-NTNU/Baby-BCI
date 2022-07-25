@@ -7,17 +7,29 @@ import logging
 from threading import Thread
 
 
+"""
+    Contains the class Operator. Manages communication and timing of threads.
 
-class OfflineOperator:
+    Last edit: 15th of june 2022
+
+    To do:
+        - More comprehensive error handling
+
+    Author: Vegard Kjeka Broen (NTNU)
+"""
+
+
+class OfflineOperator():
     def __init__(self) -> None:
         # Read config file
-        config = read_config("config.ini")
+        config = read_config("config/config.ini")
 
         # Timing stuff
         self.time_of_data_fetched = 0
 
         # Flags
-        self.is_ok = True
+        self.error = False
+        self.finished = False
 
         # Submodules
         self.eprimeserver = DummyEprimeServer(
@@ -26,8 +38,8 @@ class OfflineOperator:
         )
         self.ampclient = DummyAmpServerClient(
             int(config["Global"]["sample_rate"]),
-            int(config["AmpServer"]["ringbuffer_time_capacity"]),
             int(config["Global"]["n_channels"]),
+            int(config["AmpServer"]["ringbuffer_time_capacity"]),
         )
         self.sigproc = SignalProcessing(
             int(config["Global"]["n_channels"]),
@@ -52,10 +64,11 @@ class OfflineOperator:
     """
 
     def control_loop(self):
-        while self.is_ok:
+        while not (self.error or self.finished):
             success = self.wait_for_trial()
             if success:
                 self.get_trial_eeg()
+
                 success = self.wait_for_processing()
                 if success:
                     self.send_return_msg_eprime()
@@ -69,12 +82,12 @@ class OfflineOperator:
     def wait_for_trial(self):
         logging.info("operator: waiting for trial_finished")
         flag = False
-        error_found = False
-        while not flag and not error_found:
+        finished_or_error = False
+        while not (flag or finished_or_error):
             flag = self.eprimeserver.trial_finished.wait(1)
-            error_found = self.check_submodules()
+            finished_or_error = self.check_submodules()
 
-        if not error_found:
+        if not finished_or_error:
             logging.info("operator: clearing trial_finished")
             self.eprimeserver.trial_finished.clear()
             return True
@@ -85,9 +98,6 @@ class OfflineOperator:
         self.eprimeserver.msg_for_eprime = self.sigproc.feedback_msg
         logging.info("operator: setting msg_ready_for_eprime")
         self.eprimeserver.msg_ready_for_eprime.set()
-
-    def check_experiment_finished(self):
-        return self.eprimeserver.experiment_finished
 
     """
         AmpClient stuff
@@ -111,13 +121,14 @@ class OfflineOperator:
     """
 
     def wait_for_processing(self):
+        logging.info("operator: waiting for trial_processed")
         flag = False
-        error_found = False
-        while not flag and not error_found:
+        finished_or_error = False
+        while not (flag or finished_or_error):
             flag = self.sigproc.trial_processed.wait(1)
-            error_found = self.check_submodules()
+            finished_or_error = self.check_submodules()
 
-        if not error_found:
+        if not finished_or_error:
             logging.info("operator: clearing trial_processed")
             self.sigproc.trial_processed.clear()
             return True
@@ -131,21 +142,29 @@ class OfflineOperator:
     def check_submodules(self):
         if self.sigproc.error_encountered.is_set():
             logging.error("operator: signalprocessing encountered an error")
-            self.is_ok = False
+            self.error = True
 
         if self.ampclient.error_encountered.is_set():
             logging.error("operator: ampclient encountered an error")
-            self.is_ok = False
+            self.error = True
 
         if self.eprimeserver.error_encountered.is_set():
             logging.error("operator: eprimeserver encountered an error")
-            self.is_ok = False
+            self.error = True
 
-        if self.check_experiment_finished():
-            logging.info("operator: experiment finished")
-            self.is_ok = False
+        if self.sigproc.task_finished.is_set():
+            logging.info("operator: signalprocessing finished its task")
+            self.finished = True
 
-        if self.is_ok:
+        if self.ampclient.task_finished.is_set():
+            logging.info("operator: ampclient finished its task")
+            self.finished = True
+
+        if self.eprimeserver.task_finished.is_set():
+            logging.info("operator: eprimeserver finished its task")
+            self.finished = True
+
+        if not (self.error or self.finished):
             return False
 
         self.ampclient.set_stop_flag()
@@ -162,7 +181,7 @@ if __name__ == "__main__":
 
     t_amp = Thread(target=operator.ampclient.main_loop)
     t_amp.start()
-    t_eprime = Thread(target=operator.eprimeserver.read_write_loop)
+    t_eprime = Thread(target=operator.eprimeserver.main_loop)
     t_eprime.start()
     t_sigproc = Thread(target=operator.sigproc.main_loop)
     t_sigproc.start()

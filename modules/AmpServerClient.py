@@ -1,11 +1,11 @@
-import socket
-import threading
 import time
-import struct
 import numpy as np
 import logging
 import traceback
-from helpers.EEGBuffer import RingBuffer
+
+from modules.helpers.EEGBuffer import RingBuffer
+import modules.helpers.ampserververhelpers as amp
+from modules.SubModule import SubModule
 
 """
     Contains two classes for TCP communication between EGI AmpServer and external computer.
@@ -24,143 +24,7 @@ from helpers.EEGBuffer import RingBuffer
     Author: Vegard Kjeka Broen (NTNU)
 """
 
-
-class PacketFormat1:
-    def __init__(self) -> None:
-        # Total 1152 bytes
-        self.header = None  # uint32_t[8]                           : DINS (Digital Inputs) 1-8/9-16 at bytes 24/25; net type at byte 26.
-        self.eeg = None  # float[256], starting at 32nd byte     : EEG data
-        self.pib = None  # float[7], starting at 1056th byte     : PIB data
-        self.unused1 = None  # float, starting at 1084th byte        : N/A
-        self.ref = None  # float, starting at 1088th byte        : Reference channel
-        self.com = None  # float, starting at 1092nd byte        : Common channel
-        self.unused2 = None  # float, starting at 1096th byte        : N/A
-        self.padding = None  # float[13], starting at 1100th byte    : N/A
-
-        self.size = 1152
-
-    def read_packet(self, buf):
-        fmt = ">8I"
-        self.header = struct.unpack(fmt, buf[0:32])
-        fmt = ">256f"
-        self.eeg = np.array(struct.unpack(fmt, buf[32:1056]))
-        fmt = ">7f"
-        self.pib = struct.unpack(fmt, buf[1056:1084])
-        fmt = ">f"
-        self.unused1 = struct.unpack(fmt, buf[1084:1088])
-        self.ref = struct.unpack(fmt, buf[1088:1092])
-        self.com = struct.unpack(fmt, buf[1092:1096])
-        self.unused2 = struct.unpack(fmt, buf[1096:1100])
-        fmt = ">13f"
-        self.padding = struct.unpack(fmt, buf[1100:])
-
-    def read_eeg(self, buf):
-        fmt = ">256f"
-        return np.array(struct.unpack(fmt, buf[32:1056]))
-
-class AmpDataPacketHeader:
-    def __init__(self) -> None:
-        # Total 16 bytes
-        self.amp_id = None  # int64_t
-        self.length = None  # uint64_t, starting at 8th byte
-        self.size = 16
-
-    def read_amp_id(self, buf):
-        self.amp_id = int.from_bytes(buf, "big")
-
-    def read_length(self, buf):
-        self.length = int.from_bytes(buf, "big")
-
-    def read_var(self, buf):
-        self.read_amp_id(buf[0:8])
-        self.read_length(buf[8:])
-
-def parse_status_message(msg, start_indent=-1):
-    """
-    Input assumed to be string, not byte object
-     *      status				: complete
-             *		serial_number		: A14100120
-             *		amp_type			: NA400
-             *		legacy_board		: false
-             *		packet_format		: 2
-             *		system_version		: 2.0.14
-             *		number_of_channels	: 32
-    """
-
-    msg = msg[2:-1]
-    ret_msg = ""
-    indent_level = start_indent
-    last_par = ""
-    for i, c in enumerate(msg):
-        if c == "(":
-            indent_level = indent_level + 1
-            if i > 0:
-                if last_par == "(":
-                    ret_msg = ret_msg + ":"
-
-                ret_msg = ret_msg + "\n" + "\t" * indent_level
-
-            last_par = "("
-
-        elif c == ")":
-            indent_level = indent_level - 1
-            last_par = ")"
-
-        elif (c == "\\" and msg[i + 1] == "n") or (c == "n" and msg[i - 1] == "\\"):
-            continue
-
-        elif c == " " and msg[i + 1] == "(":
-            continue
-
-        else:
-            ret_msg = ret_msg + c
-
-    return ret_msg + "\n"
-
-class AmpServerSocket:
-    def __init__(self, address, port, name) -> None:
-        self.name = name
-        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.s.connect((address, port))
-
-    def read_chunk(self, bufsize, timeout):
-        self.s.settimeout(timeout)
-        chunk = None
-        try:
-            chunk = self.s.recv(bufsize)
-        except socket.timeout:
-            pass
-
-        self.s.settimeout(None)
-        return chunk
-
-    def send_command(self, command, ampId, channel, value):
-        str_msg = (
-            "(sendCommand "
-            + command
-            + " "
-            + ampId
-            + " "
-            + channel
-            + " "
-            + value
-            + ")\n"
-        )
-        byte_msg = str_msg.encode("utf-8")
-
-        self.s.settimeout(1)
-        try:
-            self.s.sendall(byte_msg)
-        except socket.timeout:
-            pass
-
-        self.s.settimeout(None)
-
-    def close(self):
-        self.s.shutdown()
-        self.s.close()
-
-class AmpServerClient:
+class AmpServerClient(SubModule):
     def __init__(
         self,
         _sample_rate,
@@ -173,6 +37,8 @@ class AmpServerClient:
         _amp_id,
         _amp_model,
     ) -> None:
+        # Initialize parent class
+        super().__init__()
 
         # In the future config should be fetched from User Interface
         self.sample_rate = _sample_rate
@@ -192,14 +58,7 @@ class AmpServerClient:
         else:  # NA400
             self.scaling_factor = 0.00009313225
 
-        # Flags
-        self.connected = False
-        self.stop_flag = False
-
-        # Events
-        self.error_encountered = threading.Event()
-
-        # Should probably be its own class
+        # EEG ringbuffer
         self.n_samples = self.sample_rate * _ringbuffer_time_capacity
         self.ringbuf = RingBuffer(self.n_samples, self.n_channels)
 
@@ -207,35 +66,36 @@ class AmpServerClient:
         self.first_packet_received = False
         self.rec_sample_rate = float(self.sample_rate)
 
-        self.data_header = AmpDataPacketHeader()
+        # Packets
+        self.data_header = amp.AmpDataPacketHeader()
 
     def connect(self):
-        self.command_socket = AmpServerSocket(
+        self.command_socket = amp.AmpServerSocket(
             address=self.amp_addr, port=self.command_port, name="CommandSocket"
         )
-        self.notification_socket = AmpServerSocket(
+        self.notification_socket = amp.AmpServerSocket(
             address=self.amp_addr,
             port=self.notification_port,
             name="NotificationSocket",
         )
-        self.data_socket = AmpServerSocket(
+        self.data_socket = amp.AmpServerSocket(
             address=self.amp_addr, port=self.data_port, name="DataSocket"
         )
 
         _, _, _ = self.recvall(verbose=2)
         self.init_amplifier()
 
-    def _send_command(self, command, ampId, channel, value):
+    def send_cmd(self, command, ampId, channel, value):
         self.command_socket.send_command(command, ampId, channel, value)
         response = self.command_socket.read_chunk(4096, 2)
         return response
 
-    def _send_data_command(self, command, ampId, channel, value):
+    def send_data_cmd(self, command, ampId, channel, value):
         self.data_socket.send_command(command, ampId, channel, value)
 
     def _get_amplifier_details(self):
-        response = self._send_command("cmd_GetAmpDetails", str(self.amp_id), "0", "0")
-        pretty_response = parse_status_message(repr(response))
+        response = self.send_cmd("cmd_GetAmpDetails", str(self.amp_id), "0", "0")
+        pretty_response = amp.parse_status_message(repr(response))
         logging.debug(f"AmpDetails\n{pretty_response}")
 
     def init_amplifier(self):
@@ -246,43 +106,43 @@ class AmpServerClient:
         packetCounter is reset. """
 
         # Stop amp
-        stop_response = self._send_command("cmd_Stop", str(self.amp_id), "0", "0")
+        stop_response = self.send_cmd("cmd_Stop", str(self.amp_id), "0", "0")
 
         # Turn off amp
-        set_power_off_response = self._send_command(
+        set_power_off_response = self.send_cmd(
             "cmd_SetPower", str(self.amp_id), "0", "0"
         )
 
         # Set sample rate, hardcoded to 500Hz
-        set_sample_rate_response = self._send_command(
+        set_sample_rate_response = self.send_cmd(
             "cmd_SetDecimatedRate", str(self.amp_id), "0", "500"
         )
 
         # Turn on amp
-        set_power_on_response = self._send_command(
+        set_power_on_response = self.send_cmd(
             "cmd_SetPower", str(self.amp_id), "0", "1"
         )
 
         # Start amp
-        start_response = self._send_command("cmd_Start", str(self.amp_id), "0", "0")
+        start_response = self.send_cmd("cmd_Start", str(self.amp_id), "0", "0")
 
         """ set to default acquisition mode (note: this should almost surely come before
         the start call...) """
         # Set to default acquisition mode
-        set_default_acq_mode_response = self._send_command(
+        set_default_acq_mode_response = self.send_cmd(
             "cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0"
         )
 
         logging.info(self.command_socket.name.upper())
-        logging.info(f"Stop\n{parse_status_message(repr(stop_response))}")
-        logging.info(f"SetPower\n{parse_status_message(repr(set_power_off_response))}")
+        logging.info(f"Stop\n{amp.parse_status_message(repr(stop_response))}")
+        logging.info(f"SetPower\n{amp.parse_status_message(repr(set_power_off_response))}")
         logging.info(
-            f"SetDecimatedRate\n{parse_status_message(repr(set_sample_rate_response))}"
+            f"SetDecimatedRate\n{amp.parse_status_message(repr(set_sample_rate_response))}"
         )
-        logging.info(f"SetPower\n{parse_status_message(repr(set_power_on_response))}")
-        logging.info(f"Start\n{parse_status_message(repr(start_response))}")
+        logging.info(f"SetPower\n{amp.parse_status_message(repr(set_power_on_response))}")
+        logging.info(f"Start\n{amp.parse_status_message(repr(start_response))}")
         logging.info(
-            f"DefaultAcquisitionState\n{parse_status_message(repr(set_default_acq_mode_response))}"
+            f"DefaultAcquisitionState\n{amp.parse_status_message(repr(set_default_acq_mode_response))}"
         )
         logging.info("Amplifier initialized\n\n")
 
@@ -333,7 +193,7 @@ class AmpServerClient:
                 Status messages, reformat and print.
                 """
                 logging.debug(
-                    f"{name.upper()}\n{parse_status_message(repr(chunk))}\n\n"
+                    f"{name.upper()}\n{amp.parse_status_message(repr(chunk))}\n\n"
                 )
 
         return chunk
@@ -344,38 +204,22 @@ class AmpServerClient:
         data_chunk = self.recvfrom("data", 4096, verbose)
         return cmd_chunk, not_chunk, data_chunk
 
-    def stream_good(self):
-        # Dummy function at the moment, not sure what to look at
-        if self.first_packet_received is False:
-            # Stream has not started
-            return True
-
-        else:
-            if abs(self.rec_sample_rate - self.sample_rate) >= 100:
-                return True
-
-            else:
-                return True
-
-    def is_ok(self):
-        return self.stream_good()
-
     def close(self):
         self.command_socket.close()
         self.notification_socket.close()
         self.data_socket.close()
 
-    def read_packet_format_1(self):
+    def main_loop(self):
         """
         Loop for receiving data packets
         TODO:
-            -
+            - enable reading of packet format 2
         """
         counter = 0
         start_time = time.perf_counter()
 
         try:
-            while self.stream_good() and not self.stop_flag:
+            while self.is_ok() and not self.stop_flag:
                 # Check sample_rate
                 header_buf = None
                 while header_buf is None:
@@ -383,8 +227,8 @@ class AmpServerClient:
 
                 self.data_header.read_var(header_buf)
 
-                first_packet = PacketFormat1()
-                packet = PacketFormat1()
+                first_packet = amp.PacketFormat1()
+                packet = amp.PacketFormat1()
                 n_samples = int(self.data_header.length / first_packet.size)
 
                 if self.data_header.length % first_packet.size:
@@ -428,7 +272,9 @@ class AmpServerClient:
             logging.error(
                 f"ampclient: Error encountered in read_packet_format_1: {traceback.format_exc()}"
             )
-            self.error_encountered.set()
+            self.set_error_encountered()
+
+        logging.info("ampclient: exiting main_loop")
 
     def get_samples(self, n):
         """
@@ -437,14 +283,10 @@ class AmpServerClient:
         return self.ringbuf.get_samples(n)
 
     def start_listening(self):
-        self._send_data_command("cmd_ListenToAmp", str(self.amp_id), "0", "0")
+        self.send_data_cmd("cmd_ListenToAmp", str(self.amp_id), "0", "0")
 
     def stop_listening(self):
-        self._send_data_command("cmd_StopListeningToAmp", str(self.amp_id), "0", "0")
-
-    def set_stop_flag(self):
-        self.stop_flag = True
-
+        self.send_data_cmd("cmd_StopListeningToAmp", str(self.amp_id), "0", "0")
 
 if __name__ == "__main__":
     # logging.basicConfig(filename='ampserverclient.log', filemode='w', level=logging.DEBUG)
@@ -455,7 +297,7 @@ if __name__ == "__main__":
 
     amp_client.start_listening()
 
-    amp_client.read_packet_format_1()
+    amp_client.main_loop()
 
     eeg_arr = np.zeros((amp_client.n_channels, amp_client.n_samples))
 

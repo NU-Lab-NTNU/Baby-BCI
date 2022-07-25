@@ -21,13 +21,14 @@ from threading import Thread
 class Operator:
     def __init__(self) -> None:
         # Read config file
-        config = read_config("config.ini")
+        config = read_config("config/config.ini")
 
         # Timing stuff
         self.time_of_data_fetched = 0
 
         # Flags
-        self.is_ok = True
+        self.error = False
+        self.finished = False
 
         # Submodules
         self.eprimeserver = EprimeServer(
@@ -54,6 +55,7 @@ class Operator:
             config["SignalProcessing"]["preprocessing_fname"],
             config["SignalProcessing"]["classifier_fname"],
             config["SignalProcessing"]["regressor_fname"],
+            config["SignalProcessing"]["experiment_fname"],
         )
 
         t_eprime = Thread(target=self.eprimeserver.create_socket)
@@ -72,7 +74,7 @@ class Operator:
     """
 
     def control_loop(self):
-        while self.is_ok:
+        while not (self.error or self.finished):
             success = self.wait_for_trial()
             if success:
                 self.get_trial_eeg()
@@ -90,12 +92,12 @@ class Operator:
     def wait_for_trial(self):
         logging.info("operator: waiting for trial_finished")
         flag = False
-        error_found = False
-        while not flag and not error_found:
+        finished_or_error = False
+        while not (flag or finished_or_error):
             flag = self.eprimeserver.trial_finished.wait(1)
-            error_found = self.check_submodules()
+            finished_or_error = self.check_submodules()
 
-        if not error_found:
+        if not finished_or_error:
             logging.info("operator: clearing trial_finished")
             self.eprimeserver.trial_finished.clear()
             return True
@@ -129,13 +131,14 @@ class Operator:
     """
 
     def wait_for_processing(self):
+        logging.info("operator: waiting for trial_processed")
         flag = False
-        error_found = False
-        while not flag and not error_found:
+        finished_or_error = False
+        while not (flag or finished_or_error):
             flag = self.sigproc.trial_processed.wait(1)
-            error_found = self.check_submodules()
+            finished_or_error = self.check_submodules()
 
-        if not error_found:
+        if not finished_or_error:
             logging.info("operator: clearing trial_processed")
             self.sigproc.trial_processed.clear()
             return True
@@ -149,17 +152,29 @@ class Operator:
     def check_submodules(self):
         if self.sigproc.error_encountered.is_set():
             logging.error("operator: signalprocessing encountered an error")
-            self.is_ok = False
+            self.error = True
 
         if self.ampclient.error_encountered.is_set():
             logging.error("operator: ampclient encountered an error")
-            self.is_ok = False
+            self.error = True
 
         if self.eprimeserver.error_encountered.is_set():
             logging.error("operator: eprimeserver encountered an error")
-            self.is_ok = False
+            self.error = True
 
-        if self.is_ok:
+        if self.sigproc.task_finished.is_set():
+            logging.info("operator: signalprocessing finished its task")
+            self.finished = True
+
+        if self.ampclient.task_finished.is_set():
+            logging.info("operator: ampclient finished its task")
+            self.finished = True
+
+        if self.eprimeserver.task_finished.is_set():
+            logging.info("operator: eprimeserver finished its task")
+            self.finished = True
+
+        if not (self.error or self.finished):
             return False
 
         self.ampclient.set_stop_flag()
@@ -174,9 +189,9 @@ if __name__ == "__main__":
     operator = Operator()
     operator.ampclient.start_listening()
 
-    t_amp = Thread(target=operator.ampclient.read_packet_format_1)
+    t_amp = Thread(target=operator.ampclient.main_loop)
     t_amp.start()
-    t_eprime = Thread(target=operator.eprimeserver.read_write_loop)
+    t_eprime = Thread(target=operator.eprimeserver.main_loop)
     t_eprime.start()
     t_sigproc = Thread(target=operator.sigproc.main_loop)
     t_sigproc.start()

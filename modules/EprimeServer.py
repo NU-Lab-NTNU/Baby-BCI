@@ -1,10 +1,10 @@
 import socket
-from typing import Tuple
 import logging
 import time
 import threading
-import helpers.util as util
+import modules.helpers.util as util
 import traceback
+from modules.SubModule import SubModule
 
 """
     Contains the class EprimeServer, providing API for communication with E-Prime
@@ -18,24 +18,22 @@ import traceback
 """
 
 
-class EprimeServer:
+class EprimeServer(SubModule):
     def __init__(self, _socket_address, _port) -> None:
+        # Initialize parent class
+        super().__init__()
+
+        # Client connection and address
         self.conn = None
         self.addr = None
 
-        # Socket
+        # Socket address and port
         self.socket_address = _socket_address
         self.port = _port
 
         # Events
         self.msg_ready_for_eprime = threading.Event()
         self.trial_finished = threading.Event()
-        self.error_encountered = threading.Event()
-
-        # Flags
-        self.is_ok = False
-        self.stop_flag = False
-        self.is_connected = False
 
         # Data from operator
         self.msg_for_eprime = None
@@ -55,10 +53,8 @@ class EprimeServer:
         self.conn, self.addr = self.s.accept()
         if self.conn is not None:
             logging.info(f"Connected to client at address: {self.addr}")
-            self.is_ok = True
-            self.is_connected = True
 
-    def _parse_msg(self, byte_msg) -> Tuple[str, int]:
+    def _parse_msg(self, byte_msg):
         """
         Returns type and value of message.
         Type, description (value):
@@ -76,7 +72,7 @@ class EprimeServer:
 
         return msg_type, msg_value
 
-    def wait_for_eprime_msg(self) -> Tuple[str, int]:
+    def wait_for_eprime_msg(self):
         """
         Waits for message from E-prime.
         Returns message type and value.
@@ -94,7 +90,7 @@ class EprimeServer:
 
         return msg_type, msg_value
 
-    def send_msg(self, str_msg: str):
+    def send_msg(self, str_msg):
         byte_msg = str_msg.encode("utf-8")
         self.conn.sendto(byte_msg, self.addr)
         logging.debug(f"Message sent: {str_msg}")
@@ -104,9 +100,9 @@ class EprimeServer:
         exit_msg = "E 0"
         self.send_msg(exit_msg)
 
-    def read_write_loop(self):
+    def main_loop(self):
         try:
-            while self.is_good():
+            while self.is_ok():
                 msg_type, msg_value = self.wait_for_eprime_msg()
 
                 if msg_type == "R":
@@ -137,20 +133,19 @@ class EprimeServer:
                         logging.info("eprimeserver: clearing msg_ready_for_eprime")
                         self.msg_ready_for_eprime.clear()
 
-            if self.is_connected:
-                self.send_exit_msg()
+            self.send_exit_msg()
 
         except:
             logging.error(
-                f"eprimeserver: Error encountered in read_write_loop: {traceback.format_exc()}"
+                f"eprimeserver: Error encountered in main_loop: {traceback.format_exc()}"
             )
-            self.error_encountered.set()
+            self.set_error_encountered()
 
-        logging.info("eprimeserver: exiting read_write_loop")
+        logging.info("eprimeserver: exiting main_loop.")
 
-    def read_write_loop_test(self):
+    def main_loop_test(self):
         # try:
-        while self.is_good():
+        while self.is_ok():
             msg_type, msg_value = self.wait_for_eprime_msg()
 
             if msg_type == "R":
@@ -160,6 +155,7 @@ class EprimeServer:
                 elif msg_value == 0:
                     logging.info("Experiment finished, closing tcp connection...")
                     self.close()
+                    self.set_finished()
                     break
 
             elif msg_type == "T":
@@ -181,20 +177,13 @@ class EprimeServer:
                     logging.info("eprimeserver: clearing msg_ready_for_eprime")
                     self.msg_ready_for_eprime.clear()
 
-        if self.is_connected:
-            self.send_exit_msg()
+        self.send_exit_msg()
 
         # except:
         #    logging.error("eprimeserver: Error encountered in read_write_loop")
-        #    self.error_encountered.set()
+        #    self.set_error_encountered()
 
-        logging.info("eprimeserver: exiting read_write_loop")
-
-    def is_good(self):
-        return self.is_ok and not self.stop_flag
-
-    def set_stop_flag(self):
-        self.stop_flag = True
+        logging.info("eprimeserver: exiting main_loop")
 
     def close(self):
         self.conn.close()
@@ -216,4 +205,4 @@ if __name__ == "__main__":
 
     eprimeserver.create_socket()
 
-    eprimeserver.read_write_loop_test()
+    eprimeserver.main_loop_test()

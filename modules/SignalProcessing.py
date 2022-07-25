@@ -5,6 +5,7 @@ import os
 import logging
 import modules.helpers.util as util
 import traceback
+from modules.SubModule import SubModule
 
 """
     Contains the class SignalProcessing (should maybe be renamed).
@@ -20,7 +21,7 @@ import traceback
 """
 
 
-class SignalProcessing:
+class SignalProcessing(SubModule):
     def __init__(
         self,
         _n_channels,
@@ -33,16 +34,20 @@ class SignalProcessing:
         _regressor_fname,
         _experiment_fname,
     ) -> None:
+        # Init parent class
+        super().__init__()
+
         # eeg data array
         self.n_channels = _n_channels
         self.sample_rate = _sample_rate
-        self.time_per_trial = _time_per_trial  # time in seconds per trial
+        self.time_per_trial = _time_per_trial
         self.time_start = _time_start
         self.time_stop = _time_stop
+
         self.n_samples = round(self.time_per_trial * self.sample_rate / 1000.0)
-        self.eeg = np.zeros(
-            (self.n_channels, self.n_samples)
-        )  # np.array holding eeg data for one trial
+        self.eeg = np.zeros((self.n_channels, self.n_samples))
+
+        # Variable accounting for delay between end of trial and data fetching
         self.delay = 0
 
         # Filenames
@@ -54,10 +59,6 @@ class SignalProcessing:
         # Events
         self.trial_data_ready = threading.Event()
         self.trial_processed = threading.Event()
-        self.error_encountered = threading.Event()
-
-        # Flags
-        self.stop_flag = False
 
         # Results
         self.y_prob = []
@@ -147,12 +148,6 @@ class SignalProcessing:
         results = np.array([self.y[-1], self.y_prob[-1], self.t[-1], self.discard[-1]])
         np.save(path2, results)
 
-    def is_ok(self):
-        return not self.stop_flag
-
-    def set_stop_flag(self):
-        self.stop_flag = True
-
     def main_loop(self):
         try:
             while self.is_ok():
@@ -166,7 +161,7 @@ class SignalProcessing:
             logging.error(
                 f"signalprocessing: Error encountered in main_loop: {traceback.format_exc()}"
             )
-            self.error_encountered.set()
+            self.set_error_encountered()
 
         logging.info("signalprocessing: exiting main_loop.")
 

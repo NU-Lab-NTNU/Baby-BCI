@@ -1,16 +1,19 @@
 import numpy as np
-from helpers.EEGBuffer import RingBuffer, DequeBuffer
 import time
-import threading
 import logging
 import traceback
+
+from modules.SubModule import SubModule
+from modules.helpers.EEGBuffer import RingBuffer, DequeBuffer
 
 """
     Used for offline testing when EGI amp is not available
 """
 
-class DummyAmpServerClient:
-    def __init__(self, _sample_rate, _ringbuffer_time_capacity, _n_channels) -> None:
+class DummyAmpServerClient(SubModule):
+    def __init__(self, _sample_rate, _n_channels, _ringbuffer_time_capacity) -> None:
+        # Initialize parent class
+        super().__init__()
 
         # Ringbuffer
         n_samples = _sample_rate * _ringbuffer_time_capacity
@@ -19,16 +22,8 @@ class DummyAmpServerClient:
         # Signal generator stuff
         self.rng = np.random.default_rng(seed=0)
 
-        # Flags
-        self.stop_flag = False
-
         # Sample
         self.sample = np.zeros(256)
-
-        # Events
-        self.error_encountered = threading.Event()
-
-
 
     def main_loop(self):
         try:
@@ -45,10 +40,9 @@ class DummyAmpServerClient:
             logging.error(
                 f"ampclient: Error encountered in main_loop: {traceback.format_exc()}"
             )
-            self.error_encountered.set()
+            self.set_error_encountered()
 
-    def set_stop_flag(self):
-        self.stop_flag = True
+        logging.info("ampclient: exiting main_loop")
 
     def start_listening(self):
         time.sleep(0.2)

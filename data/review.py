@@ -74,11 +74,11 @@ if __name__ == "__main__":
 
     for i in range(21):
         trialnum = i+1
-
-        x = load_trial("Abhishek", trialnum).T
+        exp_name = "Test2507"
+        x = load_trial(exp_name, trialnum)
         print(f"x shape: {x.shape}")
-        plot_channels(x, ch, voffset=1, title=f"Abhishek Trial {trialnum}")
-        plot_channels_fft(x, ch, title=f"Abhishek FFT Trial {trialnum}")
+        plot_channels(x, ch, title=f"{exp_name} Trial {trialnum}")
+        plot_channels_fft(x, ch, title=f"{exp_name} FFT Trial {trialnum}")
 
 
 
