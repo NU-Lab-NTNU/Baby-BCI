@@ -113,18 +113,20 @@ class AmpServerClient(SubModule):
             "cmd_SetPower", str(self.amp_id), "0", "0"
         )
 
-        # Set sample rate, hardcoded to 500Hz
-        set_sample_rate_response = self.send_cmd(
-            "cmd_SetDecimatedRate", str(self.amp_id), "0", "500"
-        )
-
         # Turn on amp
         set_power_on_response = self.send_cmd(
             "cmd_SetPower", str(self.amp_id), "0", "1"
         )
 
-        # Start amp
-        start_response = self.send_cmd("cmd_Start", str(self.amp_id), "0", "0")
+        # Turn on Filter and Decimation routines
+        set_filter_and_decimate_response = self.send_cmd(
+            "cmd_SetFilterAndDecimate", str(self.amp_id), "0", "1"
+        )
+
+        # Set sample rate, hardcoded to 500Hz
+        set_sample_rate_response = self.send_cmd(
+            "cmd_SetDecimatedRate", str(self.amp_id), "0", "500"
+        )
 
         """ set to default acquisition mode (note: this should almost surely come before
         the start call...) """
@@ -133,17 +135,23 @@ class AmpServerClient(SubModule):
             "cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0"
         )
 
+        # Start data stream
+        start_response = self.send_cmd("cmd_Start", str(self.amp_id), "0", "0")
+
         logging.info(self.command_socket.name.upper())
         logging.info(f"Stop\n{amp.parse_status_message(repr(stop_response))}")
         logging.info(f"SetPower\n{amp.parse_status_message(repr(set_power_off_response))}")
+        logging.info(f"SetPower\n{amp.parse_status_message(repr(set_power_on_response))}")
+        logging.info(
+            f"SetFilterAndDecimate\n{amp.parse_status_message(repr(set_filter_and_decimate_response))}"
+        )
         logging.info(
             f"SetDecimatedRate\n{amp.parse_status_message(repr(set_sample_rate_response))}"
         )
-        logging.info(f"SetPower\n{amp.parse_status_message(repr(set_power_on_response))}")
-        logging.info(f"Start\n{amp.parse_status_message(repr(start_response))}")
         logging.info(
             f"DefaultAcquisitionState\n{amp.parse_status_message(repr(set_default_acq_mode_response))}"
         )
+        logging.info(f"Start\n{amp.parse_status_message(repr(start_response))}")
         logging.info("Amplifier initialized\n\n")
 
         self._get_amplifier_details()
@@ -245,6 +253,8 @@ class AmpServerClient(SubModule):
                     if not self.first_packet_received:
                         first_packet.read_packet(packet_buf)
                         sample = first_packet.eeg
+                        net_code, n_channels = first_packet.get_net_code()
+                        logging.info(f"ampclient: net_code = {net_code.name}, n_channels = {n_channels}")
                         self.first_packet_received = True
                     else:
                         sample = packet.read_eeg(packet_buf)
