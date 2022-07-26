@@ -112,6 +112,7 @@ class EprimeServer(SubModule):
                     elif msg_value == 0:
                         logging.info("Experiment finished, closing tcp connection...")
                         self.close()
+                        self.set_finished()
                         break
 
                 elif msg_type == "T":
@@ -133,7 +134,7 @@ class EprimeServer(SubModule):
                         logging.info("eprimeserver: clearing msg_ready_for_eprime")
                         self.msg_ready_for_eprime.clear()
 
-            self.send_exit_msg()
+            #self.send_exit_msg()
 
         except:
             logging.error(
