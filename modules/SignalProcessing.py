@@ -72,7 +72,9 @@ class SignalProcessing(SubModule):
         # File stuff
         self.folder_path = "data/" + self.experiment_fname
         if os.path.isdir(self.folder_path):
-            logging.warning(f"signalprocessing: folder {self.folder_path} already exists, data might be overwritten.")
+            logging.warning(
+                f"signalprocessing: folder {self.folder_path} already exists, data might be overwritten."
+            )
 
         else:
             os.mkdir(self.folder_path)

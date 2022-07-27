@@ -88,7 +88,9 @@ class DummyEprimeServer(SubModule):
                         self.experiment_started = True
 
                     elif msg_value == 0:
-                        logging.info("eprimeserver: experiment finished, closing tcp connection...")
+                        logging.info(
+                            "eprimeserver: experiment finished, closing tcp connection..."
+                        )
                         self.set_finished()
                         break
 

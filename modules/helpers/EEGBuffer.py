@@ -5,7 +5,6 @@ import itertools
 import logging
 
 
-
 class RingBuffer:
     def __init__(self, _n_samples, _n_channels) -> None:
         self.n_channels = _n_channels
@@ -15,10 +14,11 @@ class RingBuffer:
         self.write_index = 0
         self.full = False
 
-
     def get_samples(self, n_read):
         if n_read > self.n_samples:
-            logging.warning("ringbuffer: Trying to read more samples than buffer capacity")
+            logging.warning(
+                "ringbuffer: Trying to read more samples than buffer capacity"
+            )
         read_to = self.write_index
         read_time = time.perf_counter()
         diff = n_read - read_to
@@ -40,8 +40,8 @@ class RingBuffer:
             logging.debug("ringbuffer: diff <= 0")
             x = self.buf[-diff:read_to]
 
-        assert(x.shape[0] == n_read)
-        assert(x.shape[1] == self.n_channels)
+        assert x.shape[0] == n_read
+        assert x.shape[1] == self.n_channels
         return x.T, read_time
 
     def write_sample(self, s):
@@ -53,10 +53,12 @@ class RingBuffer:
 
         self.write_index = (tmp) % self.n_samples
 
+
 class DequeBuffer:
     """
-        This was used as first attempt at creating a buffer, replaced by RingBuffer
+    This was used as first attempt at creating a buffer, replaced by RingBuffer
     """
+
     def __init__(self, _n_samples, _n_channels) -> None:
         self.n_samples = _n_samples
         self.n_channels = _n_channels
@@ -72,4 +74,4 @@ class DequeBuffer:
         return np.array(tmp).reshape((self.n_channels, n_read)), time_read
 
     def write_sample(self, s):
-        self.buf.extend(s[0:self.n_channels])
+        self.buf.extend(s[0 : self.n_channels])

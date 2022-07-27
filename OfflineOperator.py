@@ -7,7 +7,7 @@ import logging
 from threading import Thread
 
 
-class OfflineOperator():
+class OfflineOperator:
     def __init__(self) -> None:
         # Read config file
         config = read_config("config/config.ini")
@@ -40,7 +40,6 @@ class OfflineOperator():
             config["SignalProcessing"]["regressor_fname"],
             config["SignalProcessing"]["experiment_fname"],
         )
-
 
         t_sigproc = Thread(target=self.sigproc.load_models)
         t_sigproc.start()
@@ -96,7 +95,7 @@ class OfflineOperator():
             self.sigproc.n_samples
         )
         self.sigproc.delay = (
-        self.time_of_data_fetched - self.eprimeserver.time_of_trial_finish
+            self.time_of_data_fetched - self.eprimeserver.time_of_trial_finish
         ) * 1000
         logging.info(
             f"Delay E-prime to AmpServer client: {round(self.sigproc.delay, 2)} milliseconds"

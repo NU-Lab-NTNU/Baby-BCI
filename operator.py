@@ -24,7 +24,7 @@ class Operator:
 
         # Test_stuff
         self.sig_freq = [3, 5, 10, 20, 100]
-        self.sig_wave = [0,1,2]
+        self.sig_wave = [0, 1, 2]
         self.sig_wave_name = ["sine wave", "square wave", "triangle wave"]
         self.sig_type_idx = 0
 
@@ -158,26 +158,38 @@ class Operator:
             )
             logging.debug("operator: setting trial_data_ready")
             self.sigproc.trial_data_ready.set()
-        
+
         except:
             logging.error(
                 f"operator: Error encountered in get_trial_eeg: {traceback.format_exc()}"
             )
             self.error = True
 
-
     def set_signal_type(self):
         try:
             wave_type = str(self.sig_wave[self.sig_type_idx % len(self.sig_wave)])
             wave_freq = str(self.sig_freq[self.sig_type_idx % len(self.sig_freq)])
 
-            set_wave_shape_response = self.ampclient.send_cmd("cmd_SetWaveShape", str(self.ampclient.amp_id), "0", wave_type)
-            set_signal_freq_response = self.ampclient.send_cmd("cmd_SetCalibrationSignalFreq", str(self.ampclient.amp_id), "0", wave_freq)
+            set_wave_shape_response = self.ampclient.send_cmd(
+                "cmd_SetWaveShape", str(self.ampclient.amp_id), "0", wave_type
+            )
+            set_signal_freq_response = self.ampclient.send_cmd(
+                "cmd_SetCalibrationSignalFreq",
+                str(self.ampclient.amp_id),
+                "0",
+                wave_freq,
+            )
 
-            logging.debug(f"SetWaveShape\n{amp.parse_status_message(repr(set_wave_shape_response))}")
-            logging.debug(f"SetCalibrationSignalFreq\n{amp.parse_status_message(repr(set_signal_freq_response))}")
+            logging.debug(
+                f"SetWaveShape\n{amp.parse_status_message(repr(set_wave_shape_response))}"
+            )
+            logging.debug(
+                f"SetCalibrationSignalFreq\n{amp.parse_status_message(repr(set_signal_freq_response))}"
+            )
 
-            logging.info(f"operator: signal shape set to {self.sig_wave_name[int(wave_type)]} with freq = {wave_freq} Hz")
+            logging.info(
+                f"operator: signal shape set to {self.sig_wave_name[int(wave_type)]} with freq = {wave_freq} Hz"
+            )
 
             self.sig_type_idx = self.sig_type_idx + 1
 

@@ -65,21 +65,21 @@ class AmpServerClient(SubModule):
     def assert_config(self):
         # Assert correct sample_rate
         if self.amp_model == "NA300":
-            allowed_fs = [50,100,200,250,500,1000]
+            allowed_fs = [50, 100, 200, 250, 500, 1000]
         else:
-            allowed_fs = [250,500,1000]
+            allowed_fs = [250, 500, 1000]
 
-        assert(isinstance(self.sample_rate, int))
-        assert(self.sample_rate in allowed_fs)
+        assert isinstance(self.sample_rate, int)
+        assert self.sample_rate in allowed_fs
 
         # Assert correct n_channels
-        allowed_n_channels = [32,64,128,256]
-        assert(isinstance(self.n_channels, int))
-        assert(self.n_channels in allowed_n_channels)
+        allowed_n_channels = [32, 64, 128, 256]
+        assert isinstance(self.n_channels, int)
+        assert self.n_channels in allowed_n_channels
 
         # Assert duplication factor
-        assert(isinstance(self.duplication_factor, int))
-        assert(self.duplication_factor * self.sample_rate == 1000)
+        assert isinstance(self.duplication_factor, int)
+        assert self.duplication_factor * self.sample_rate == 1000
 
     def connect(self):
         try:
@@ -123,23 +123,25 @@ class AmpServerClient(SubModule):
         disconnect and shut down before starting. This will ensure that the
         packetCounter is reset. """
 
-        set_mode_response = self.send_cmd("cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0")
+        set_mode_response = self.send_cmd(
+            "cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0"
+        )
         mode = "DefaultAcquisitionState"
 
-# =============================================================================
-#         # Stop amp
-#         stop_response = self.send_cmd("cmd_Stop", str(self.amp_id), "0", "0")
-#
-#         # Turn off amp
-#         set_power_off_response = self.send_cmd(
-#             "cmd_SetPower", str(self.amp_id), "0", "0"
-#         )
-#
-#         # Turn on amp
-#         set_power_on_response = self.send_cmd(
-#             "cmd_SetPower", str(self.amp_id), "0", "1"
-#         )
-# =============================================================================
+        # =============================================================================
+        #         # Stop amp
+        #         stop_response = self.send_cmd("cmd_Stop", str(self.amp_id), "0", "0")
+        #
+        #         # Turn off amp
+        #         set_power_off_response = self.send_cmd(
+        #             "cmd_SetPower", str(self.amp_id), "0", "0"
+        #         )
+        #
+        #         # Turn on amp
+        #         set_power_on_response = self.send_cmd(
+        #             "cmd_SetPower", str(self.amp_id), "0", "1"
+        #         )
+        # =============================================================================
 
         # Turn on Filter and Decimation routines
         set_filter_and_decimate_response = self.send_cmd(
@@ -152,14 +154,17 @@ class AmpServerClient(SubModule):
             "cmd_SetDecimatedRate", str(self.amp_id), "0", fs
         )
 
-
         """ set to default acquisition or default signal generation mode, depending on config (note: this should almost surely come before
         the start call...) """
         if self.mode == "test":
-            set_mode_response = self.send_cmd("cmd_DefaultSignalGeneration", str(self.amp_id), "0", "0")
+            set_mode_response = self.send_cmd(
+                "cmd_DefaultSignalGeneration", str(self.amp_id), "0", "0"
+            )
             mode = "DefaultSignalGeneration"
         else:
-            set_mode_response = self.send_cmd("cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0")
+            set_mode_response = self.send_cmd(
+                "cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0"
+            )
             mode = "DefaultAcquisitionState"
 
         # Start data stream
@@ -175,9 +180,7 @@ class AmpServerClient(SubModule):
         logging.debug(
             f"SetDecimatedRate\n{amp.parse_status_message(repr(set_sample_rate_response))}"
         )
-        logging.debug(
-            f"{mode}\n{amp.parse_status_message(repr(set_mode_response))}"
-        )
+        logging.debug(f"{mode}\n{amp.parse_status_message(repr(set_mode_response))}")
         logging.debug(f"Start\n{amp.parse_status_message(repr(start_response))}")
         logging.info("Amplifier initialized\n\n")
 
@@ -285,7 +288,9 @@ class AmpServerClient(SubModule):
                         first_packet.read_packet(packet_buf)
                         sample = first_packet.eeg
                         net_code, n_channels = first_packet.get_net_code()
-                        logging.info(f"ampclient: net_code = {net_code.name}, n_channels = {n_channels}")
+                        logging.info(
+                            f"ampclient: net_code = {net_code.name}, n_channels = {n_channels}"
+                        )
                         self.first_packet_received = True
                     else:
                         sample = packet.read_eeg(packet_buf)
@@ -335,6 +340,7 @@ class AmpServerClient(SubModule):
 
     def stop_listening(self):
         self.send_data_cmd("cmd_StopListeningToAmp", str(self.amp_id), "0", "0")
+
 
 if __name__ == "__main__":
     # logging.basicConfig(filename='ampserverclient.log', filemode='w', level=logging.DEBUG)

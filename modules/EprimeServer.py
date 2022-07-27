@@ -104,19 +104,21 @@ class EprimeServer(SubModule):
                 if msg_type == "R":
                     if msg_value == 1:
                         """
-                            msg: R 1
-                            E-Prime says that experiment is starting.
-                            -> Send confirmation message
+                        msg: R 1
+                        E-Prime says that experiment is starting.
+                        -> Send confirmation message
                         """
                         self.send_msg("R 1\n")
 
                     elif msg_value == 0:
                         """
-                            msg: R 0
-                            Experiment finished.
-                            -> Signal to operator that we are done
+                        msg: R 0
+                        Experiment finished.
+                        -> Signal to operator that we are done
                         """
-                        logging.info("eprimeserver: experiment finished, closing tcp connection...")
+                        logging.info(
+                            "eprimeserver: experiment finished, closing tcp connection..."
+                        )
                         self.close()
                         self.set_finished()
                         break
@@ -124,17 +126,17 @@ class EprimeServer(SubModule):
                 elif msg_type == "T":
                     if msg_value in [2, 3, 4]:
                         """
-                            msg: T 2/3/4
-                            Looming stimulus of duration 2/3/4s started.
+                        msg: T 2/3/4
+                        Looming stimulus of duration 2/3/4s started.
                         """
                         logging.debug("eprimeserver: stimulus started")
                         self.speed = msg_value
 
                     elif msg_value == 1:
                         """
-                            msg: T 1
-                            Looming stimulus ended (collision).
-                            -> Wait for operator to provide return message.
+                        msg: T 1
+                        Looming stimulus ended (collision).
+                        -> Wait for operator to provide return message.
                         """
                         self.time_of_trial_finish = time.perf_counter()
 
@@ -149,7 +151,7 @@ class EprimeServer(SubModule):
                         logging.debug("eprimeserver: clearing msg_ready_for_eprime")
                         self.msg_ready_for_eprime.clear()
 
-            #self.send_exit_msg()
+            # self.send_exit_msg()
 
         except:
             logging.error(

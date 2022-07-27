@@ -10,6 +10,7 @@ from modules.helpers.EEGBuffer import RingBuffer, DequeBuffer
     Used for offline testing when EGI amp is not available
 """
 
+
 class DummyAmpServerClient(SubModule):
     def __init__(self, _sample_rate, _n_channels, _ringbuffer_time_capacity) -> None:
         # Initialize parent class

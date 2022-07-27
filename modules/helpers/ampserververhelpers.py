@@ -3,25 +3,26 @@ import numpy as np
 import socket
 import enum
 
+
 class NetCode(enum.Enum):
-    GSN64_2_0 = 0       #  GSN 64
-    GSN128_2_0 = 1      #  GSN 128
-    GSN256_2_0 = 2      #  GSN 256
+    GSN64_2_0 = 0  #  GSN 64
+    GSN128_2_0 = 1  #  GSN 128
+    GSN256_2_0 = 2  #  GSN 256
 
-    HCGSN32_1_0 = 3     #  HGSN 32
-    HCGSN64_1_0 = 4     #  HGSN 64
-    HCGSN128_1_0 = 5    #  HGSN 128
-    HCGSN256_1_0 = 6    #  HGSN 256
+    HCGSN32_1_0 = 3  #  HGSN 32
+    HCGSN64_1_0 = 4  #  HGSN 64
+    HCGSN128_1_0 = 5  #  HGSN 128
+    HCGSN256_1_0 = 6  #  HGSN 256
 
-    MCGSN32_1_0 = 7     #  MGSN 32
-    MCGSN64_1_0 = 8     #  MGSN 64
-    MCGSN128_1_0 = 9    #  MGSN 128
-    MCGSN256_1_0 = 10   #  MGSN 256
+    MCGSN32_1_0 = 7  #  MGSN 32
+    MCGSN64_1_0 = 8  #  MGSN 64
+    MCGSN128_1_0 = 9  #  MGSN 128
+    MCGSN256_1_0 = 10  #  MGSN 256
 
-    AMP_SAMPLE = 11     # EAmpSample displayable channels (internal use only)
+    AMP_SAMPLE = 11  # EAmpSample displayable channels (internal use only)
     TestConnector = 14
-    NoNet = 15          # net not connected
-    Unknown = 255       # Unknown or net not connected
+    NoNet = 15  # net not connected
+    Unknown = 255  # Unknown or net not connected
 
 
 class PacketFormat1:
@@ -63,16 +64,32 @@ class PacketFormat1:
     def get_net_code(self):
         net_code = self.net_codes(self.net_code_val)
         n_channels = 0
-        if (net_code == self.net_codes.HCGSN32_1_0 or net_code == self.net_codes.MCGSN32_1_0):
+        if (
+            net_code == self.net_codes.HCGSN32_1_0
+            or net_code == self.net_codes.MCGSN32_1_0
+        ):
             n_channels = 32
-        elif (net_code == self.net_codes.GSN64_2_0 or net_code == self.net_codes.HCGSN64_1_0 or net_code == self.net_codes.MCGSN64_1_0):
+        elif (
+            net_code == self.net_codes.GSN64_2_0
+            or net_code == self.net_codes.HCGSN64_1_0
+            or net_code == self.net_codes.MCGSN64_1_0
+        ):
             n_channels = 64
-        elif (net_code == self.net_codes.GSN128_2_0 or net_code == self.net_codes.HCGSN128_1_0 or net_code == self.net_codes.MCGSN128_1_0):
+        elif (
+            net_code == self.net_codes.GSN128_2_0
+            or net_code == self.net_codes.HCGSN128_1_0
+            or net_code == self.net_codes.MCGSN128_1_0
+        ):
             n_channels = 128
-        elif (net_code == self.net_codes.GSN256_2_0 or net_code == self.net_codes.HCGSN256_1_0 or net_code == self.net_codes.MCGSN256_1_0):
+        elif (
+            net_code == self.net_codes.GSN256_2_0
+            or net_code == self.net_codes.HCGSN256_1_0
+            or net_code == self.net_codes.MCGSN256_1_0
+        ):
             n_channels = 256
 
         return net_code, n_channels
+
 
 class AmpDataPacketHeader:
     def __init__(self) -> None:
@@ -90,6 +107,7 @@ class AmpDataPacketHeader:
     def read_var(self, buf):
         self.read_amp_id(buf[0:8])
         self.read_length(buf[8:])
+
 
 def parse_status_message(msg, start_indent=-1):
     """
@@ -132,6 +150,7 @@ def parse_status_message(msg, start_indent=-1):
             ret_msg = ret_msg + c
 
     return ret_msg + "\n"
+
 
 class AmpServerSocket:
     def __init__(self, address, port, name) -> None:

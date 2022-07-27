@@ -28,7 +28,9 @@ config_file.set("E-Prime", "port", "20237")
 config_file.add_section("SignalProcessing")
 
 # Dummy-filenames
-config_file.set("SignalProcessing", "preprocessing_fname", "<Path to preprocessing file>")
+config_file.set(
+    "SignalProcessing", "preprocessing_fname", "<Path to preprocessing file>"
+)
 config_file.set("SignalProcessing", "classifier_fname", "<Path to classifier file>")
 config_file.set("SignalProcessing", "regressor_fname", "<Path to regressor file>")
 config_file.set("SignalProcessing", "experiment_fname", "Test2707")
