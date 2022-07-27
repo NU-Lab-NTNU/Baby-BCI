@@ -36,6 +36,7 @@ class AmpServerClient(SubModule):
         self.amp_id = _amp_id
         self.amp_model = _amp_model
 
+        # Scaling factor
         self.scaling_factor = None
         if self.amp_model == "NA300":
             self.scaling_factor = 0.0244140625
@@ -54,6 +55,31 @@ class AmpServerClient(SubModule):
 
         # Packets
         self.data_header = amp.AmpDataPacketHeader()
+
+        # Duplication factor
+        self.duplication_factor = 1000 / self.sample_rate
+
+        # Assert config is good
+        self.assert_config()
+
+    def assert_config(self):
+        # Assert correct sample_rate
+        if self.amp_model == "NA300":
+            allowed_fs = [50,100,200,250,500,1000]
+        else:
+            allowed_fs = [250,500,1000]
+
+        assert(isinstance(self.sample_rate, int))
+        assert(self.sample_rate in allowed_fs)
+
+        # Assert correct n_channels
+        allowed_n_channels = [32,64,128,256]
+        assert(isinstance(self.n_channels, int))
+        assert(self.n_channels in allowed_n_channels)
+
+        # Assert duplication factor
+        assert(isinstance(self.duplication_factor, int))
+        assert(self.duplication_factor * self.sample_rate == 1000)
 
     def connect(self):
         try:
@@ -120,9 +146,10 @@ class AmpServerClient(SubModule):
             "cmd_SetFilterAndDecimate", str(self.amp_id), "0", "1"
         )
 
-        # Set sample rate, hardcoded to 500Hz
+        # Set sample rate
+        fs = str(self.sample_rate)
         set_sample_rate_response = self.send_cmd(
-            "cmd_SetDecimatedRate", str(self.amp_id), "0", "500"
+            "cmd_SetDecimatedRate", str(self.amp_id), "0", fs
         )
 
 
@@ -217,6 +244,9 @@ class AmpServerClient(SubModule):
         self.notification_socket.close()
         self.data_socket.close()
 
+    def is_duplicate(self, counter):
+        return counter % self.duplication_factor
+
     def main_loop(self):
         """
         Loop for receiving data packets
@@ -224,6 +254,7 @@ class AmpServerClient(SubModule):
             - enable reading of packet format 2
         """
         counter = 0
+        unique_counter = 0
         start_time = time.perf_counter()
 
         try:
@@ -260,15 +291,17 @@ class AmpServerClient(SubModule):
                         sample = packet.read_eeg(packet_buf)
 
                     # push eeg_data to ring_buffer
-                    self.ringbuf.write_sample(sample)
+                    if not self.is_duplicate(counter):
+                        self.ringbuf.write_sample(sample)
+                        unique_counter = unique_counter + 1
 
                     counter = counter + 1
-                    if counter % 1000 == 0:
+                    if unique_counter % 1000 == 0:
                         elapsed_1000 = time.perf_counter() - start_time
                         start_time = time.perf_counter()
                         self.rec_sample_rate = 1000.0 / elapsed_1000
-                        logging.debug(
-                            f"Receiving sample rate: {round(self.rec_sample_rate, 2)} Hz"
+                        logging.info(
+                            f"Unique data packet rate: {round(self.rec_sample_rate, 2)} Hz"
                         )
 
                     if self.stop_flag:
@@ -290,7 +323,7 @@ class AmpServerClient(SubModule):
         """
         Get last n samples in ringbuf, scale to get microvolts
         """
-        return self.ringbuf.get_samples(n)
+        return self.ringbuf.get_samples(n) * self.scaling_factor
 
     def start_listening(self):
         self.send_data_cmd("cmd_ListenToAmp", str(self.amp_id), "0", "0")
