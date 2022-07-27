@@ -18,3 +18,7 @@ Implementation:
   
 Notes:
   - The AmpServerClient module is heavily inspired by [labstreaminglayer/App-EGIAmpServer](https://github.com/labstreaminglayer/App-EGIAmpServer)
+
+This project is worked on by NTNU's NuLab:
+  - [In-house website](https://nulab-ntnu.github.io/)
+  - [NTNU's website](https://www.ntnu.edu/psychology/nulab)
