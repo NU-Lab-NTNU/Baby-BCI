@@ -116,7 +116,7 @@ class EprimeServer(SubModule):
                             Experiment finished.
                             -> Signal to operator that we are done
                         """
-                        logging.info("Experiment finished, closing tcp connection...")
+                        logging.info("eprimeserver: experiment finished, closing tcp connection...")
                         self.close()
                         self.set_finished()
                         break
@@ -127,7 +127,7 @@ class EprimeServer(SubModule):
                             msg: T 2/3/4
                             Looming stimulus of duration 2/3/4s started.
                         """
-                        logging.debug("Stimulus started")
+                        logging.debug("eprimeserver: stimulus started")
                         self.speed = msg_value
 
                     elif msg_value == 1:

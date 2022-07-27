@@ -146,17 +146,25 @@ class Operator:
     """
 
     def get_trial_eeg(self):
-        self.sigproc.eeg, self.time_of_data_fetched = self.ampclient.get_samples(
-            self.sigproc.n_samples
-        )
-        self.sigproc.delay = (
-            self.time_of_data_fetched - self.eprimeserver.time_of_trial_finish
-        ) * 1000
-        logging.info(
-            f"Delay E-prime to AmpServer client: {round(self.sigproc.delay, 2)} milliseconds"
-        )
-        logging.debug("operator: setting trial_data_ready")
-        self.sigproc.trial_data_ready.set()
+        try:
+            self.sigproc.eeg, self.time_of_data_fetched = self.ampclient.get_samples(
+                self.sigproc.n_samples
+            )
+            self.sigproc.delay = (
+                self.time_of_data_fetched - self.eprimeserver.time_of_trial_finish
+            ) * 1000
+            logging.info(
+                f"operator: delay E-prime to AmpServer client: {round(self.sigproc.delay, 2)} milliseconds"
+            )
+            logging.debug("operator: setting trial_data_ready")
+            self.sigproc.trial_data_ready.set()
+        
+        except:
+            logging.error(
+                f"operator: Error encountered in get_trial_eeg: {traceback.format_exc()}"
+            )
+            self.error = True
+
 
     def set_signal_type(self):
         try:
@@ -237,7 +245,7 @@ class Operator:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.INFO)
 
     operator = Operator()
     if not operator.error:
@@ -251,7 +259,10 @@ if __name__ == "__main__":
         t_sigproc.start()
 
         operator.control_loop()
-
+        """
+            @todo Force submodules to join after error
+            @body thread.join() blocks program exit following error in control loop
+        """
         t_amp.join()
         t_eprime.join()
         t_sigproc.join()

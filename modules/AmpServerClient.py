@@ -57,7 +57,7 @@ class AmpServerClient(SubModule):
         self.data_header = amp.AmpDataPacketHeader()
 
         # Duplication factor
-        self.duplication_factor = 1000 / self.sample_rate
+        self.duplication_factor = int(1000 / self.sample_rate)
 
         # Assert config is good
         self.assert_config()
@@ -297,17 +297,24 @@ class AmpServerClient(SubModule):
 
                     counter = counter + 1
                     if unique_counter % 1000 == 0:
+                        """
+                            @todo weird behaviour when monitoring sample rate
+                            @body log alternating between reasonable sample rate (<1kHz) and insane sample rate (>1MHz)
+                        """
                         elapsed_1000 = time.perf_counter() - start_time
                         start_time = time.perf_counter()
                         self.rec_sample_rate = 1000.0 / elapsed_1000
                         logging.info(
-                            f"Unique data packet rate: {round(self.rec_sample_rate, 2)} Hz"
+                            f"ampclient: unique data packet rate: {round(self.rec_sample_rate, 2)} Hz"
                         )
 
                     if self.stop_flag:
                         break
 
             self.stop_listening()
+            """
+                @todo stop amplifier when exiting main_loop
+            """
             self.stop_flag = False
             self.first_packet_received = False
 
@@ -323,7 +330,8 @@ class AmpServerClient(SubModule):
         """
         Get last n samples in ringbuf, scale to get microvolts
         """
-        return self.ringbuf.get_samples(n) * self.scaling_factor
+        x, read_time = self.ringbuf.get_samples(n)
+        return x * self.scaling_factor, read_time
 
     def start_listening(self):
         self.send_data_cmd("cmd_ListenToAmp", str(self.amp_id), "0", "0")

@@ -118,7 +118,7 @@ class SignalProcessing(SubModule):
         if self.delay > self.time_per_trial - self.time_start:
             discard = 1
             logging.warning(
-                "signalprocessing: Too large delay, trial discarded. Increase time_per_trial or speed up the system somehow."
+                "signalprocessing: too large delay, trial discarded. Increase time_per_trial or speed up the system somehow."
             )
         else:
             start = int(self.time_per_trial - self.time_start - self.delay)

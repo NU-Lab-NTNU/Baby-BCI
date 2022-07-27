@@ -42,7 +42,6 @@ class RingBuffer:
 
         assert(x.shape[0] == n_read)
         assert(x.shape[1] == self.n_channels)
-        assert(np.sum(np.absolute(x)) > 1)
         return x.T, read_time
 
     def write_sample(self, s):
