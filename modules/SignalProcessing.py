@@ -93,11 +93,11 @@ class SignalProcessing(SubModule):
 
     def wait_for_data(self):
         timeout = 1
-        logging.info("signalprocessing: waiting for trial_data_ready")
+        logging.debug("signalprocessing: waiting for trial_data_ready")
         while self.is_ok():
             flag = self.trial_data_ready.wait(timeout)
             if flag:
-                logging.info("signalprocessing: clearing trial_data_ready")
+                logging.debug("signalprocessing: clearing trial_data_ready")
                 self.trial_data_ready.clear()
                 return True
 
@@ -143,7 +143,7 @@ class SignalProcessing(SubModule):
 
     def create_feedback_msg(self):
         self.feedback_msg = f"y = {self.y[-1]}, y_prob = {round(self.y_prob[-1], 2)}, t = {self.t[-1]}, discard = {self.discard[-1]}"
-        logging.info("signalprocessing: setting trial_processed")
+        logging.debug("signalprocessing: setting trial_processed")
         self.trial_processed.set()
 
     def dump_data(self):

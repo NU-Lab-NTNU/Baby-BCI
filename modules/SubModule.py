@@ -3,7 +3,13 @@ import logging
 import traceback
 
 """
-    Parent class for submodules, might not be used
+    Parent class for submodules.
+    This class serves two functions:
+        - Establish a norm for how communication between operator and submodule are performed.
+        - Cookbook for development of new submodules.
+
+    Typically, a connect/load/initialize-function should be called at startup
+    and during experiment a thread running the submodule's main_loop should be started.
 """
 
 class SubModule:
@@ -31,12 +37,16 @@ class SubModule:
 
     def set_finished(self):
         """
-            Used by SubModule to signal to Operator that work is finished.
+            Used by SubModule to signal to Operator that task is finished.
+                - An example of how this can be used is found in EprimeServer.
         """
         self.task_finished.set()
 
     def is_ok(self):
-        return not self.stop_flag and not self.task_finished.is_set()
+        """
+            Condition for continuing main_loop
+        """
+        return not (self.stop_flag or self.task_finished.is_set())
 
     def main_loop(self):
         """
@@ -51,11 +61,9 @@ class SubModule:
                 """
                 # process/fetch/whatever
 
-                # if done:
-                #   self.set_finished()
-
                 counter = counter + 1
                 if counter > 1000:
+                    # Set finished when thread has completed task.
                     self.set_finished()
 
         except:
@@ -65,4 +73,7 @@ class SubModule:
             self.error_encountered.set()
 
     def close(self):
+        """
+            Module specific what this function should do.
+        """
         pass

@@ -104,11 +104,11 @@ class DummyEprimeServer(SubModule):
                         """
                         self.trial_started = False
                         self.time_of_trial_finish = time.perf_counter()
-                        logging.info("eprimeserver: setting trial_finished")
+                        logging.debug("eprimeserver: setting trial_finished")
                         self.trial_finished.set()
-                        logging.info("eprimeserver: waiting for msg_ready_for_eprime")
+                        logging.debug("eprimeserver: waiting for msg_ready_for_eprime")
                         self.msg_ready_for_eprime.wait()  # Should maybe have a timeout to avoid waiting too long
-                        logging.info("eprimeserver: clearing msg_ready_for_eprime")
+                        logging.debug("eprimeserver: clearing msg_ready_for_eprime")
                         self.msg_ready_for_eprime.clear()
 
         except:

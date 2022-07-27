@@ -76,24 +76,28 @@ class Operator:
                 t_eprime.join(0.25)
                 t_eprime_done = not t_eprime.is_alive()
                 if t_eprime_done:
-                    logging.info("operator: t_eprime done")
+                    logging.info("operator: t_eprime startup done")
 
             if not t_amp_done:
                 t_amp.join(0.25)
                 t_amp_done = not t_amp.is_alive()
                 if t_amp_done:
-                    logging.info("operator: t_amp done")
+                    logging.info("operator: t_amp startup done")
 
             if not t_sigproc_done:
                 t_sigproc.join(0.25)
                 t_sigproc_done = not t_sigproc.is_alive()
                 if t_sigproc_done:
-                    logging.info("operator: t_sigproc done")
+                    logging.info("operator: t_sigproc startup done")
 
             threads_done = t_eprime_done and t_amp_done and t_sigproc_done
-        
+
         if not error_found:
             logging.info("operator: all startup threads are done")
+
+        else:
+            self.error = True
+            logging.error("operator: error occured on startup. exiting...")
 
     """
         Operator stuff
@@ -118,7 +122,7 @@ class Operator:
     """
 
     def wait_for_trial(self):
-        logging.info("operator: waiting for trial_finished")
+        logging.debug("operator: waiting for trial_finished")
         flag = False
         finished_or_error = False
         while not (flag or finished_or_error):
@@ -126,7 +130,7 @@ class Operator:
             finished_or_error = self.check_submodules()
 
         if not finished_or_error:
-            logging.info("operator: clearing trial_finished")
+            logging.debug("operator: clearing trial_finished")
             self.eprimeserver.trial_finished.clear()
             return True
 
@@ -134,7 +138,7 @@ class Operator:
 
     def send_return_msg_eprime(self):
         self.eprimeserver.msg_for_eprime = self.sigproc.feedback_msg
-        logging.info("operator: setting msg_ready_for_eprime")
+        logging.debug("operator: setting msg_ready_for_eprime")
         self.eprimeserver.msg_ready_for_eprime.set()
 
     """
@@ -151,7 +155,7 @@ class Operator:
         logging.info(
             f"Delay E-prime to AmpServer client: {round(self.sigproc.delay, 2)} milliseconds"
         )
-        logging.info("operator: setting trial_data_ready")
+        logging.debug("operator: setting trial_data_ready")
         self.sigproc.trial_data_ready.set()
 
     def set_signal_type(self):
@@ -166,12 +170,12 @@ class Operator:
             logging.debug(f"SetCalibrationSignalFreq\n{amp.parse_status_message(repr(set_signal_freq_response))}")
 
             logging.info(f"operator: signal shape set to {self.sig_wave_name[int(wave_type)]} with freq = {wave_freq} Hz")
-            
-            self.sig_type_idx = self.sig_type_idx + 1 
+
+            self.sig_type_idx = self.sig_type_idx + 1
 
         except:
             logging.error(
-                f"operator: Error encountered in connect: {traceback.format_exc()}"
+                f"operator: Error encountered in set_signal_type: {traceback.format_exc()}"
             )
             self.error = True
 
@@ -180,7 +184,7 @@ class Operator:
     """
 
     def wait_for_processing(self):
-        logging.info("operator: waiting for trial_processed")
+        logging.debug("operator: waiting for trial_processed")
         flag = False
         finished_or_error = False
         while not (flag or finished_or_error):
@@ -188,7 +192,7 @@ class Operator:
             finished_or_error = self.check_submodules()
 
         if not finished_or_error:
-            logging.info("operator: clearing trial_processed")
+            logging.debug("operator: clearing trial_processed")
             self.sigproc.trial_processed.clear()
             return True
 
@@ -236,17 +240,18 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
 
     operator = Operator()
-    operator.ampclient.start_listening()
+    if not operator.error:
+        operator.ampclient.start_listening()
 
-    t_amp = Thread(target=operator.ampclient.main_loop)
-    t_amp.start()
-    t_eprime = Thread(target=operator.eprimeserver.main_loop)
-    t_eprime.start()
-    t_sigproc = Thread(target=operator.sigproc.main_loop)
-    t_sigproc.start()
+        t_amp = Thread(target=operator.ampclient.main_loop)
+        t_amp.start()
+        t_eprime = Thread(target=operator.eprimeserver.main_loop)
+        t_eprime.start()
+        t_sigproc = Thread(target=operator.sigproc.main_loop)
+        t_sigproc.start()
 
-    operator.control_loop()
+        operator.control_loop()
 
-    t_amp.join()
-    t_eprime.join()
-    t_sigproc.join()
+        t_amp.join()
+        t_eprime.join()
+        t_sigproc.join()

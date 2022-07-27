@@ -61,14 +61,14 @@ class OfflineOperator():
                 if success:
                     self.send_return_msg_eprime()
 
-        logging.info("operator: exiting control_loop")
+        logging.debug("operator: exiting control_loop")
 
     """
         E-prime stuff
     """
 
     def wait_for_trial(self):
-        logging.info("operator: waiting for trial_finished")
+        logging.debug("operator: waiting for trial_finished")
         flag = False
         finished_or_error = False
         while not (flag or finished_or_error):
@@ -76,7 +76,7 @@ class OfflineOperator():
             finished_or_error = self.check_submodules()
 
         if not finished_or_error:
-            logging.info("operator: clearing trial_finished")
+            logging.debug("operator: clearing trial_finished")
             self.eprimeserver.trial_finished.clear()
             return True
 
@@ -84,7 +84,7 @@ class OfflineOperator():
 
     def send_return_msg_eprime(self):
         self.eprimeserver.msg_for_eprime = self.sigproc.feedback_msg
-        logging.info("operator: setting msg_ready_for_eprime")
+        logging.debug("operator: setting msg_ready_for_eprime")
         self.eprimeserver.msg_ready_for_eprime.set()
 
     """
@@ -101,7 +101,7 @@ class OfflineOperator():
         logging.info(
             f"Delay E-prime to AmpServer client: {round(self.sigproc.delay, 2)} milliseconds"
         )
-        logging.info("operator: setting trial_data_ready")
+        logging.debug("operator: setting trial_data_ready")
         self.sigproc.trial_data_ready.set()
 
     """
@@ -109,7 +109,7 @@ class OfflineOperator():
     """
 
     def wait_for_processing(self):
-        logging.info("operator: waiting for trial_processed")
+        logging.debug("operator: waiting for trial_processed")
         flag = False
         finished_or_error = False
         while not (flag or finished_or_error):
@@ -117,7 +117,7 @@ class OfflineOperator():
             finished_or_error = self.check_submodules()
 
         if not finished_or_error:
-            logging.info("operator: clearing trial_processed")
+            logging.debug("operator: clearing trial_processed")
             self.sigproc.trial_processed.clear()
             return True
 

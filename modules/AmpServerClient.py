@@ -96,19 +96,19 @@ class AmpServerClient(SubModule):
         """ Because it is possible that the amplifier was not properly disconnected from,
         disconnect and shut down before starting. This will ensure that the
         packetCounter is reset. """
-        
+
         set_mode_response = self.send_cmd("cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0")
         mode = "DefaultAcquisitionState"
 
 # =============================================================================
 #         # Stop amp
 #         stop_response = self.send_cmd("cmd_Stop", str(self.amp_id), "0", "0")
-# 
+#
 #         # Turn off amp
 #         set_power_off_response = self.send_cmd(
 #             "cmd_SetPower", str(self.amp_id), "0", "0"
 #         )
-# 
+#
 #         # Turn on amp
 #         set_power_on_response = self.send_cmd(
 #             "cmd_SetPower", str(self.amp_id), "0", "1"
@@ -125,7 +125,7 @@ class AmpServerClient(SubModule):
             "cmd_SetDecimatedRate", str(self.amp_id), "0", "500"
         )
 
-        
+
         """ set to default acquisition or default signal generation mode, depending on config (note: this should almost surely come before
         the start call...) """
         if self.mode == "test":
@@ -138,20 +138,20 @@ class AmpServerClient(SubModule):
         # Start data stream
         start_response = self.send_cmd("cmd_Start", str(self.amp_id), "0", "0")
 
-        logging.info(self.command_socket.name.upper())
-        # logging.info(f"Stop\n{amp.parse_status_message(repr(stop_response))}")
-        # logging.info(f"SetPower\n{amp.parse_status_message(repr(set_power_off_response))}")
-        # logging.info(f"SetPower\n{amp.parse_status_message(repr(set_power_on_response))}")
-        logging.info(
+        logging.debug(self.command_socket.name.upper())
+        # logging.debug(f"Stop\n{amp.parse_status_message(repr(stop_response))}")
+        # logging.debug(f"SetPower\n{amp.parse_status_message(repr(set_power_off_response))}")
+        # logging.debug(f"SetPower\n{amp.parse_status_message(repr(set_power_on_response))}")
+        logging.debug(
             f"SetFilterAndDecimate\n{amp.parse_status_message(repr(set_filter_and_decimate_response))}"
         )
-        logging.info(
+        logging.debug(
             f"SetDecimatedRate\n{amp.parse_status_message(repr(set_sample_rate_response))}"
         )
-        logging.info(
+        logging.debug(
             f"{mode}\n{amp.parse_status_message(repr(set_mode_response))}"
         )
-        logging.info(f"Start\n{amp.parse_status_message(repr(start_response))}")
+        logging.debug(f"Start\n{amp.parse_status_message(repr(start_response))}")
         logging.info("Amplifier initialized\n\n")
 
         self._get_amplifier_details()
@@ -267,7 +267,7 @@ class AmpServerClient(SubModule):
                         elapsed_1000 = time.perf_counter() - start_time
                         start_time = time.perf_counter()
                         self.rec_sample_rate = 1000.0 / elapsed_1000
-                        logging.info(
+                        logging.debug(
                             f"Receiving sample rate: {round(self.rec_sample_rate, 2)} Hz"
                         )
 

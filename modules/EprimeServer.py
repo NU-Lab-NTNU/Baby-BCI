@@ -103,9 +103,19 @@ class EprimeServer(SubModule):
 
                 if msg_type == "R":
                     if msg_value == 1:
+                        """
+                            msg: R 1
+                            E-Prime says that experiment is starting.
+                            -> Send confirmation message
+                        """
                         self.send_msg("R 1\n")
 
                     elif msg_value == 0:
+                        """
+                            msg: R 0
+                            Experiment finished.
+                            -> Signal to operator that we are done
+                        """
                         logging.info("Experiment finished, closing tcp connection...")
                         self.close()
                         self.set_finished()
@@ -113,21 +123,30 @@ class EprimeServer(SubModule):
 
                 elif msg_type == "T":
                     if msg_value in [2, 3, 4]:
+                        """
+                            msg: T 2/3/4
+                            Looming stimulus of duration 2/3/4s started.
+                        """
                         logging.debug("Stimulus started")
                         self.speed = msg_value
 
                     elif msg_value == 1:
                         """
-                        Wait for operator to provide return message
+                            msg: T 1
+                            Looming stimulus ended (collision).
+                            -> Wait for operator to provide return message.
                         """
                         self.time_of_trial_finish = time.perf_counter()
-                        logging.info("eprimeserver: setting trial_finished")
+
+                        logging.debug("eprimeserver: setting trial_finished")
                         self.trial_finished.set()
-                        logging.info("eprimeserver: waiting for msg_ready_for_eprime")
-                        self.msg_ready_for_eprime.wait()  # Should maybe have a timeout to avoid waiting too long
-                        # self.send_msg("E " + str(self.speed) + "\n")
+
+                        logging.debug("eprimeserver: waiting for msg_ready_for_eprime")
+                        self.msg_ready_for_eprime.wait()
+
                         self.send_msg(self.msg_for_eprime)
-                        logging.info("eprimeserver: clearing msg_ready_for_eprime")
+
+                        logging.debug("eprimeserver: clearing msg_ready_for_eprime")
                         self.msg_ready_for_eprime.clear()
 
             #self.send_exit_msg()
@@ -141,7 +160,6 @@ class EprimeServer(SubModule):
         logging.info("eprimeserver: exiting main_loop.")
 
     def main_loop_test(self):
-        # try:
         while self.is_ok():
             msg_type, msg_value = self.wait_for_eprime_msg()
 
@@ -165,20 +183,16 @@ class EprimeServer(SubModule):
                     Wait for operator to provide return message
                     """
                     self.time_of_trial_finish = time.perf_counter()
-                    logging.info("eprimeserver: setting trial_finished")
+                    logging.debug("eprimeserver: setting trial_finished")
                     self.trial_finished.set()
-                    logging.info("eprimeserver: waiting for msg_ready_for_eprime")
+                    logging.debug("eprimeserver: waiting for msg_ready_for_eprime")
                     # self.msg_ready_for_eprime.wait()  # Should maybe have a timeout to avoid waiting too long
                     self.send_msg("E " + str(self.speed) + "\n")
                     # self.send_msg(self.msg_for_eprime)
-                    logging.info("eprimeserver: clearing msg_ready_for_eprime")
+                    logging.debug("eprimeserver: clearing msg_ready_for_eprime")
                     self.msg_ready_for_eprime.clear()
 
         self.send_exit_msg()
-
-        # except:
-        #    logging.error("eprimeserver: Error encountered in read_write_loop")
-        #    self.set_error_encountered()
 
         logging.info("eprimeserver: exiting main_loop")
 
