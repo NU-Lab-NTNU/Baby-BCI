@@ -1,4 +1,6 @@
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 # NU-BCI-v4
+
 WARNING:
   - The project is currently in an unfinished, minimally tested, state and in rapid development
 
@@ -17,5 +19,3 @@ This project is worked on by NTNU's NuLab:
   
 Notes:
   - The AmpServerClient module is heavily inspired by [labstreaminglayer/App-EGIAmpServer](https://github.com/labstreaminglayer/App-EGIAmpServer)
-
-[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
