@@ -86,7 +86,7 @@ def ICA_filter(x, fs=500.0):
     return S_raw, S, y
 
 if __name__ == "__main__":
-    ch = [i+5 for i in range(10)]
+    ch = [1]
     for i in range(21):
         trialnum = i+1
 
@@ -104,19 +104,19 @@ if __name__ == "__main__":
 
     for i in range(21):
         trialnum = i+1
-        exp_name = "197"
+        exp_name = "Test2707"
         x = load_trial(exp_name, trialnum)
         print(f"x shape: {x.shape}")
         plot_channels(x, ch, title=f"{exp_name} Trial {trialnum}")
         plot_channels_fft(x, ch, title=f"{exp_name} FFT Trial {trialnum}")
 
-        start_time = time.perf_counter()
+        """ start_time = time.perf_counter()
         S, S_filt, y = ICA_filter(x)
         print(f"ICA_filter used {(time.perf_counter() - start_time)*1000} milliseconds")
         plot_channels(S, [i+1 for i in range(x.shape[0])], title=f"{exp_name} Trial {trialnum} ICA components", voffset=1)
         plot_channels(S_filt, [i+1 for i in range(x.shape[0])], title=f"{exp_name} Trial {trialnum} ICA components filtered", voffset=1)
         plot_channels(y, ch, title=f"{exp_name} Trial {trialnum} ICA filtered")
-        plot_channels_fft(y, ch, title=f"{exp_name} FFT Trial {trialnum} ICA filtered")
+        plot_channels_fft(y, ch, title=f"{exp_name} FFT Trial {trialnum} ICA filtered") """
 
 
         plt.show()

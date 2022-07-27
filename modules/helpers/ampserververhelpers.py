@@ -54,7 +54,7 @@ class PacketFormat1:
         self.unused2 = struct.unpack(fmt, buf[1096:1100])
         fmt = ">13f"
         self.padding = struct.unpack(fmt, buf[1100:])
-        self.net_code_val = int.from_bytes(buf[25])
+        self.net_code_val = int(buf[25])
 
     def read_eeg(self, buf):
         fmt = ">256f"

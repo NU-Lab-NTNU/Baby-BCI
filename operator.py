@@ -2,26 +2,18 @@ from modules.AmpServerClient import AmpServerClient
 from modules.EprimeServer import EprimeServer
 from modules.SignalProcessing import SignalProcessing
 from modules.helpers.util import read_config
+import modules.helpers.ampserververhelpers as amp
 
 import logging
 from threading import Thread
-
-"""
-    Contains the class Operator. Manages communication and timing of threads.
-
-    Last edit: 15th of june 2022
-
-    To do:
-        - More comprehensive error handling
-
-    Author: Vegard Kjeka Broen (NTNU)
-"""
+import traceback
 
 
 class Operator:
     def __init__(self) -> None:
         # Read config file
         config = read_config("config/config.ini")
+        self.mode = config["Global"]["mode"]
 
         # Timing stuff
         self.time_of_data_fetched = 0
@@ -29,6 +21,12 @@ class Operator:
         # Flags
         self.error = False
         self.finished = False
+
+        # Test_stuff
+        self.sig_freq = [3, 5, 10, 20, 100]
+        self.sig_wave = [0,1,2]
+        self.sig_wave_name = ["sine wave", "square wave", "triangle wave"]
+        self.sig_type_idx = 0
 
         # Submodules
         self.eprimeserver = EprimeServer(
@@ -38,6 +36,7 @@ class Operator:
         self.ampclient = AmpServerClient(
             int(config["Global"]["sample_rate"]),
             int(config["Global"]["n_channels"]),
+            config["Global"]["mode"],
             int(config["AmpServer"]["ringbuffer_time_capacity"]),
             config["AmpServer"]["socket_address"],
             int(config["AmpServer"]["command_port"]),
@@ -65,9 +64,36 @@ class Operator:
         t_sigproc = Thread(target=self.sigproc.load_models)
         t_sigproc.start()
 
-        t_eprime.join()
-        t_amp.join()
-        t_sigproc.join()
+        threads_done = False
+        t_eprime_done = False
+        t_amp_done = False
+        t_sigproc_done = False
+        error_found = False
+
+        while not threads_done and not error_found:
+            error_found = self.check_submodules()
+            if not t_eprime_done:
+                t_eprime.join(0.25)
+                t_eprime_done = not t_eprime.is_alive()
+                if t_eprime_done:
+                    logging.info("operator: t_eprime done")
+
+            if not t_amp_done:
+                t_amp.join(0.25)
+                t_amp_done = not t_amp.is_alive()
+                if t_amp_done:
+                    logging.info("operator: t_amp done")
+
+            if not t_sigproc_done:
+                t_sigproc.join(0.25)
+                t_sigproc_done = not t_sigproc.is_alive()
+                if t_sigproc_done:
+                    logging.info("operator: t_sigproc done")
+
+            threads_done = t_eprime_done and t_amp_done and t_sigproc_done
+        
+        if not error_found:
+            logging.info("operator: all startup threads are done")
 
     """
         Operator stuff
@@ -78,6 +104,8 @@ class Operator:
             success = self.wait_for_trial()
             if success:
                 self.get_trial_eeg()
+                if self.mode == "test":
+                    self.set_signal_type()
 
                 success = self.wait_for_processing()
                 if success:
@@ -125,6 +153,27 @@ class Operator:
         )
         logging.info("operator: setting trial_data_ready")
         self.sigproc.trial_data_ready.set()
+
+    def set_signal_type(self):
+        try:
+            wave_type = str(self.sig_wave[self.sig_type_idx % len(self.sig_wave)])
+            wave_freq = str(self.sig_freq[self.sig_type_idx % len(self.sig_freq)])
+
+            set_wave_shape_response = self.ampclient.send_cmd("cmd_SetWaveShape", str(self.ampclient.amp_id), "0", wave_type)
+            set_signal_freq_response = self.ampclient.send_cmd("cmd_SetCalibrationSignalFreq", str(self.ampclient.amp_id), "0", wave_freq)
+
+            logging.debug(f"SetWaveShape\n{amp.parse_status_message(repr(set_wave_shape_response))}")
+            logging.debug(f"SetCalibrationSignalFreq\n{amp.parse_status_message(repr(set_signal_freq_response))}")
+
+            logging.info(f"operator: signal shape set to {self.sig_wave_name[int(wave_type)]} with freq = {wave_freq} Hz")
+            
+            self.sig_type_idx = self.sig_type_idx + 1 
+
+        except:
+            logging.error(
+                f"operator: Error encountered in connect: {traceback.format_exc()}"
+            )
+            self.error = True
 
     """
         SignalProcessing stuff

@@ -82,7 +82,14 @@ class SignalProcessing(SubModule):
         """
         In the future this should load models for preprocessing/feature extraction, classification and regression
         """
-        time.sleep(0.5)
+        try:
+            time.sleep(0.5)
+
+        except:
+            logging.error(
+                f"signalprocessing: Error encountered in load_models: {traceback.format_exc()}"
+            )
+            self.set_error_encountered()
 
     def wait_for_data(self):
         timeout = 1

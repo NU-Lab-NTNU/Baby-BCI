@@ -6,17 +6,6 @@ import modules.helpers.util as util
 import traceback
 from modules.SubModule import SubModule
 
-"""
-    Contains the class EprimeServer, providing API for communication with E-Prime
-
-    Last edit: 15th of june 2022
-
-    To do:
-        - More comprehensive error handling
-
-    Author: Vegard Kjeka Broen (NTNU)
-"""
-
 
 class EprimeServer(SubModule):
     def __init__(self, _socket_address, _port) -> None:
@@ -45,14 +34,21 @@ class EprimeServer(SubModule):
         self.speed = 0
 
     def create_socket(self):
-        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.s.bind((self.socket_address, self.port))
-        logging.info(f"Created socket at {self.s.getsockname()}")
-        logging.info("Waiting for E-prime to connect...")
-        self.s.listen(1)
-        self.conn, self.addr = self.s.accept()
-        if self.conn is not None:
-            logging.info(f"Connected to client at address: {self.addr}")
+        try:
+            self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.s.bind((self.socket_address, self.port))
+            logging.info(f"Created socket at {self.s.getsockname()}")
+            logging.info("Waiting for E-prime to connect...")
+            self.s.listen(1)
+            self.conn, self.addr = self.s.accept()
+            if self.conn is not None:
+                logging.info(f"Connected to client at address: {self.addr}")
+
+        except:
+            logging.error(
+                f"eprimeserver: Error encountered in create_socket: {traceback.format_exc()}"
+            )
+            self.set_error_encountered()
 
     def _parse_msg(self, byte_msg):
         """

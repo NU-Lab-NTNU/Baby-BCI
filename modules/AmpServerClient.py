@@ -7,28 +7,13 @@ from modules.helpers.EEGBuffer import RingBuffer
 import modules.helpers.ampserververhelpers as amp
 from modules.SubModule import SubModule
 
-"""
-    Contains two classes for TCP communication between EGI AmpServer and external computer.
-    AmpServerSocket contains configuration and socket object for a single port.
-    AmpServerClient provides a simple api for interfacing with an operator module of BCI system
-
-    Notes:
-        - UI is omitted, might be added at later time.
-        - Heavily inspired by labstreaminglayer/App-EGIAmpServer: https://github.com/labstreaminglayer/App-EGIAmpServer
-
-    To do:
-        - More comprehensive error handling
-
-    Last edit: 15th of june 2022
-
-    Author: Vegard Kjeka Broen (NTNU)
-"""
 
 class AmpServerClient(SubModule):
     def __init__(
         self,
         _sample_rate,
         _n_channels,
+        _mode,
         _ringbuffer_time_capacity,
         _socket_address,
         _command_port,
@@ -43,6 +28,7 @@ class AmpServerClient(SubModule):
         # In the future config should be fetched from User Interface
         self.sample_rate = _sample_rate
         self.n_channels = _n_channels
+        self.mode = _mode
         self.amp_addr = _socket_address
         self.command_port = _command_port
         self.notification_port = _notification_port
@@ -70,20 +56,26 @@ class AmpServerClient(SubModule):
         self.data_header = amp.AmpDataPacketHeader()
 
     def connect(self):
-        self.command_socket = amp.AmpServerSocket(
-            address=self.amp_addr, port=self.command_port, name="CommandSocket"
-        )
-        self.notification_socket = amp.AmpServerSocket(
-            address=self.amp_addr,
-            port=self.notification_port,
-            name="NotificationSocket",
-        )
-        self.data_socket = amp.AmpServerSocket(
-            address=self.amp_addr, port=self.data_port, name="DataSocket"
-        )
+        try:
+            self.command_socket = amp.AmpServerSocket(
+                address=self.amp_addr, port=self.command_port, name="CommandSocket"
+            )
+            self.notification_socket = amp.AmpServerSocket(
+                address=self.amp_addr,
+                port=self.notification_port,
+                name="NotificationSocket",
+            )
+            self.data_socket = amp.AmpServerSocket(
+                address=self.amp_addr, port=self.data_port, name="DataSocket"
+            )
 
-        _, _, _ = self.recvall(verbose=2)
-        self.init_amplifier()
+            _, _, _ = self.recvall(verbose=2)
+            self.init_amplifier()
+        except:
+            logging.error(
+                f"ampclient: Error encountered in connect: {traceback.format_exc()}"
+            )
+            self.set_error_encountered()
 
     def send_cmd(self, command, ampId, channel, value):
         self.command_socket.send_command(command, ampId, channel, value)
@@ -104,19 +96,24 @@ class AmpServerClient(SubModule):
         """ Because it is possible that the amplifier was not properly disconnected from,
         disconnect and shut down before starting. This will ensure that the
         packetCounter is reset. """
+        
+        set_mode_response = self.send_cmd("cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0")
+        mode = "DefaultAcquisitionState"
 
-        # Stop amp
-        stop_response = self.send_cmd("cmd_Stop", str(self.amp_id), "0", "0")
-
-        # Turn off amp
-        set_power_off_response = self.send_cmd(
-            "cmd_SetPower", str(self.amp_id), "0", "0"
-        )
-
-        # Turn on amp
-        set_power_on_response = self.send_cmd(
-            "cmd_SetPower", str(self.amp_id), "0", "1"
-        )
+# =============================================================================
+#         # Stop amp
+#         stop_response = self.send_cmd("cmd_Stop", str(self.amp_id), "0", "0")
+# 
+#         # Turn off amp
+#         set_power_off_response = self.send_cmd(
+#             "cmd_SetPower", str(self.amp_id), "0", "0"
+#         )
+# 
+#         # Turn on amp
+#         set_power_on_response = self.send_cmd(
+#             "cmd_SetPower", str(self.amp_id), "0", "1"
+#         )
+# =============================================================================
 
         # Turn on Filter and Decimation routines
         set_filter_and_decimate_response = self.send_cmd(
@@ -128,20 +125,23 @@ class AmpServerClient(SubModule):
             "cmd_SetDecimatedRate", str(self.amp_id), "0", "500"
         )
 
-        """ set to default acquisition mode (note: this should almost surely come before
+        
+        """ set to default acquisition or default signal generation mode, depending on config (note: this should almost surely come before
         the start call...) """
-        # Set to default acquisition mode
-        set_default_acq_mode_response = self.send_cmd(
-            "cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0"
-        )
+        if self.mode == "test":
+            set_mode_response = self.send_cmd("cmd_DefaultSignalGeneration", str(self.amp_id), "0", "0")
+            mode = "DefaultSignalGeneration"
+        else:
+            set_mode_response = self.send_cmd("cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0")
+            mode = "DefaultAcquisitionState"
 
         # Start data stream
         start_response = self.send_cmd("cmd_Start", str(self.amp_id), "0", "0")
 
         logging.info(self.command_socket.name.upper())
-        logging.info(f"Stop\n{amp.parse_status_message(repr(stop_response))}")
-        logging.info(f"SetPower\n{amp.parse_status_message(repr(set_power_off_response))}")
-        logging.info(f"SetPower\n{amp.parse_status_message(repr(set_power_on_response))}")
+        # logging.info(f"Stop\n{amp.parse_status_message(repr(stop_response))}")
+        # logging.info(f"SetPower\n{amp.parse_status_message(repr(set_power_off_response))}")
+        # logging.info(f"SetPower\n{amp.parse_status_message(repr(set_power_on_response))}")
         logging.info(
             f"SetFilterAndDecimate\n{amp.parse_status_message(repr(set_filter_and_decimate_response))}"
         )
@@ -149,7 +149,7 @@ class AmpServerClient(SubModule):
             f"SetDecimatedRate\n{amp.parse_status_message(repr(set_sample_rate_response))}"
         )
         logging.info(
-            f"DefaultAcquisitionState\n{amp.parse_status_message(repr(set_default_acq_mode_response))}"
+            f"{mode}\n{amp.parse_status_message(repr(set_mode_response))}"
         )
         logging.info(f"Start\n{amp.parse_status_message(repr(start_response))}")
         logging.info("Amplifier initialized\n\n")
@@ -280,7 +280,7 @@ class AmpServerClient(SubModule):
 
         except:
             logging.error(
-                f"ampclient: Error encountered in read_packet_format_1: {traceback.format_exc()}"
+                f"ampclient: Error encountered in main_loop: {traceback.format_exc()}"
             )
             self.set_error_encountered()
 

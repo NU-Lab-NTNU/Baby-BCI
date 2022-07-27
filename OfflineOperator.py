@@ -7,18 +7,6 @@ import logging
 from threading import Thread
 
 
-"""
-    Contains the class Operator. Manages communication and timing of threads.
-
-    Last edit: 15th of june 2022
-
-    To do:
-        - More comprehensive error handling
-
-    Author: Vegard Kjeka Broen (NTNU)
-"""
-
-
 class OfflineOperator():
     def __init__(self) -> None:
         # Read config file

@@ -6,6 +6,7 @@ config_file.add_section("Global")
 
 config_file.set("Global", "n_channels", "256")
 config_file.set("Global", "sample_rate", "500")
+config_file.set("Global", "mode", "test")
 
 config_file.add_section("AmpServer")
 
@@ -30,7 +31,7 @@ config_file.add_section("SignalProcessing")
 config_file.set("SignalProcessing", "preprocessing_fname", "<Path to preprocessing file>")
 config_file.set("SignalProcessing", "classifier_fname", "<Path to classifier file>")
 config_file.set("SignalProcessing", "regressor_fname", "<Path to regressor file>")
-config_file.set("SignalProcessing", "experiment_fname", "TestDeque")
+config_file.set("SignalProcessing", "experiment_fname", "Test2607")
 config_file.set("SignalProcessing", "time_per_trial", "1000")
 config_file.set("SignalProcessing", "time_start", "875")
 config_file.set("SignalProcessing", "time_stop", "125")
