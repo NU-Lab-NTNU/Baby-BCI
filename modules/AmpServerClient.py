@@ -295,18 +295,15 @@ class AmpServerClient(SubModule):
                         self.ringbuf.write_sample(sample)
                         unique_counter = unique_counter + 1
 
+                        if unique_counter % 1000 == 0:
+                            elapsed_1000 = time.perf_counter() - start_time
+                            start_time = time.perf_counter()
+                            self.rec_sample_rate = 1000.0 / elapsed_1000
+                            logging.info(
+                                f"ampclient: unique data packet rate: {round(self.rec_sample_rate, 2)} Hz"
+                            )
+
                     counter = counter + 1
-                    if unique_counter % 1000 == 0:
-                        """
-                            @todo weird behaviour when monitoring sample rate
-                            @body log alternating between reasonable sample rate (<1kHz) and insane sample rate (>1MHz)
-                        """
-                        elapsed_1000 = time.perf_counter() - start_time
-                        start_time = time.perf_counter()
-                        self.rec_sample_rate = 1000.0 / elapsed_1000
-                        logging.info(
-                            f"ampclient: unique data packet rate: {round(self.rec_sample_rate, 2)} Hz"
-                        )
 
                     if self.stop_flag:
                         break
