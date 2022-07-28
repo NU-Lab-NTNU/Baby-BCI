@@ -48,6 +48,13 @@ class SubModule:
         """
         return not (self.stop_flag or self.task_finished.is_set())
 
+    def startup(self):
+        """
+            Connect sockets, load models etc.
+            Should be modified in child class.
+        """
+        pass
+
     def main_loop(self):
         """
         Typical layout, should be modified in child class.

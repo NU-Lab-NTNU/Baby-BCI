@@ -81,7 +81,7 @@ class AmpServerClient(SubModule):
         assert isinstance(self.duplication_factor, int)
         assert self.duplication_factor * self.sample_rate == 1000
 
-    def connect(self):
+    def startup(self):
         try:
             self.command_socket = amp.AmpServerSocket(
                 address=self.amp_addr, port=self.command_port, name="CommandSocket"
@@ -99,7 +99,7 @@ class AmpServerClient(SubModule):
             self.init_amplifier()
         except:
             logging.error(
-                f"ampclient: Error encountered in connect: {traceback.format_exc()}"
+                f"ampclient: Error encountered in startup: {traceback.format_exc()}"
             )
             self.set_error_encountered()
 
@@ -256,6 +256,8 @@ class AmpServerClient(SubModule):
         start_time = time.perf_counter()
 
         try:
+            self.start_listening()
+
             while self.is_ok():
                 # Check sample_rate
                 header_buf = None
@@ -346,9 +348,7 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.DEBUG)
     amp_client = AmpServerClient()
 
-    amp_client.connect()
-
-    amp_client.start_listening()
+    amp_client.startup()
 
     amp_client.main_loop()
 

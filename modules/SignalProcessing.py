@@ -80,7 +80,7 @@ class SignalProcessing(SubModule):
             os.mkdir(self.folder_path)
             logging.info(f"signalprocessing: created data folder: {self.folder_path}")
 
-    def load_models(self):
+    def startup(self):
         """
         In the future this should load models for preprocessing/feature extraction, classification and regression
         """
@@ -89,7 +89,7 @@ class SignalProcessing(SubModule):
 
         except:
             logging.error(
-                f"signalprocessing: Error encountered in load_models: {traceback.format_exc()}"
+                f"signalprocessing: Error encountered in startup: {traceback.format_exc()}"
             )
             self.set_error_encountered()
 
@@ -192,6 +192,6 @@ if __name__ == "__main__":
         config["SignalProcessing"]["regressor_fname"],
     )
 
-    sigproc.load_models()
+    sigproc.startup()
 
     sigproc.main_loop()

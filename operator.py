@@ -57,11 +57,19 @@ class Operator:
             config["SignalProcessing"]["experiment_fname"],
         )
 
-        t_eprime = Thread(target=self.eprimeserver.create_socket)
+    """
+        Operator stuff
+    """
+
+    def startup(self):
+        """
+            Startup of modules
+        """
+        t_eprime = Thread(target=self.eprimeserver.startup)
         t_eprime.start()
-        t_amp = Thread(target=self.ampclient.connect)
+        t_amp = Thread(target=self.ampclient.startup)
         t_amp.start()
-        t_sigproc = Thread(target=self.sigproc.load_models)
+        t_sigproc = Thread(target=self.sigproc.startup)
         t_sigproc.start()
 
         threads_done = False
@@ -99,11 +107,11 @@ class Operator:
             self.error = True
             logging.error("operator: error occured on startup. exiting...")
 
-    """
-        Operator stuff
-    """
+    def main_loop(self):
+        """
+            Main loop, this is what happens during experiment.
+        """
 
-    def control_loop(self):
         while not (self.error or self.finished):
             success = self.wait_for_trial()
             if success:
@@ -116,6 +124,27 @@ class Operator:
                     self.send_return_msg_eprime()
 
         logging.info("operator: exiting control_loop")
+
+    def control_loop(self):
+        if not self.error:
+
+            t_amp = Thread(target=self.ampclient.main_loop)
+            t_amp.start()
+
+            t_eprime = Thread(target=self.eprimeserver.main_loop)
+            t_eprime.start()
+
+            t_sigproc = Thread(target=self.sigproc.main_loop)
+            t_sigproc.start()
+
+            self.main_loop()
+
+            t_amp.join()
+            t_eprime.join()
+            t_sigproc.join()
+
+        else:
+            logging.warning("operator: error flag is raised, can't enter control_loop")
 
     """
         E-prime stuff
@@ -260,21 +289,6 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
 
     operator = Operator()
-    if not operator.error:
-        operator.ampclient.start_listening()
+    operator.startup()
 
-        t_amp = Thread(target=operator.ampclient.main_loop)
-        t_amp.start()
-        t_eprime = Thread(target=operator.eprimeserver.main_loop)
-        t_eprime.start()
-        t_sigproc = Thread(target=operator.sigproc.main_loop)
-        t_sigproc.start()
-
-        operator.control_loop()
-        """
-            @todo Force submodules to join after error
-            @body thread.join() blocks program exit following error in control loop
-        """
-        t_amp.join()
-        t_eprime.join()
-        t_sigproc.join()
+    operator.control_loop()

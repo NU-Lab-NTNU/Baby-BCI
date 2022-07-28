@@ -32,9 +32,9 @@ class EprimeServer(SubModule):
 
         # Trial data
         self.speed = 0
-        
 
-    def create_socket(self):
+
+    def startup(self):
         try:
             self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.s.bind((self.socket_address, self.port))
@@ -47,13 +47,13 @@ class EprimeServer(SubModule):
                     self.conn, self.addr = self.s.accept()
                     if self.conn is not None:
                         logging.info(f"Connected to client at address: {self.addr}")
-                        
+
                 except socket.timeout:
                     pass
 
         except:
             logging.error(
-                f"eprimeserver: Error encountered in create_socket: {traceback.format_exc()}"
+                f"eprimeserver: Error encountered in startup: {traceback.format_exc()}"
             )
             self.set_error_encountered()
 
@@ -231,6 +231,6 @@ if __name__ == "__main__":
         int(config["E-Prime"]["port"]),
     )
 
-    eprimeserver.create_socket()
+    eprimeserver.startup()
 
     eprimeserver.main_loop_test()
