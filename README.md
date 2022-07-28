@@ -2,16 +2,29 @@
 # NU-BCI
 
 WARNING:
-  - The project is currently in an unfinished, minimally tested, state and in rapid development
-
-The goal of this project is twofold:
-  - Create an interface with EGI AmpServer with as little unnecessary complexity as possible.
-  - Create a BCI-system which is easily modifiable and accessible to non-programmers (ex. psychology scientists, ML-people).
+  - The project is currently in an unfinished, minimally tested, state and in rapid development. Releases will be published whenever the author feels somewhat confident in the performence and fidelity of the system.
+  - In order to read real-time data stream from AmpServer (through AmpServerClient.py), [AmpServer Pro SDK](https://www.egi.com/images/stories/placards/ASProSDK_v21_ugid_8409500-57_20181029.pdf) is required.
  
-Implementation: 
-  - The project relies on standard python libraries for ease of use and installation.
-  - The project is designed with our lab's experimental setup in mind: data stream from NA300 amplifier, stimulus presentation done by E-Prime. Both on external computers.
-  - Each task, managing data stream, communicating with E-Prime and performing signal processing, is done by different submodules, each with their dedicated thread for their main loop. The submodules are coordinated by the operator's main loop.
+What this project is:
+  - The primary goal of this project is to create a bci-system fit for our lab's needs:
+    * Real time EEG data from EGI NetAmps amplifiers (specifically NA300).
+    * Two-way communication with E-Prime (stimulus presentation software).
+    * Allow for inter-trial classification.
+    * Enable my successors to focus on neuropsychology research and ML-algorithms rather than multithreading and TCP sockets.
+  - Secondary goals include:
+    * Provide inspiration, possibly even a working framework, to other labs seeking to create a bci-system using the same or similar technologies.
+    * Expand flexibility by providing support for other EGI NetAmps series.
+    * Hide as much low-level stuff as possible in order to improve accessibility.
+  - Technologies used:
+    * Standard python libraries are used almost exclusively, the only exception being numpy.
+ 
+What this project is not:
+  - A general BCI framework.
+    * This project was started since other BCI frameworks for some reason did not offer the functionality our lab needed. If a general framework is what you need, there are other, probably more suitable projects, such as [BCI2000](https://www.bci2000.org/mediawiki/index.php/Main_Page) or [Timeflux](https://timeflux.io/)
+ 
+Timeline:
+  - Future plans:
+    * v1.0.0 Command line interface
 
 This project is worked on by NTNU's NuLab:
   - [In-house website](https://nulab-ntnu.github.io/)
@@ -19,3 +32,4 @@ This project is worked on by NTNU's NuLab:
   
 Notes:
   - The AmpServerClient module is heavily inspired by [labstreaminglayer/App-EGIAmpServer](https://github.com/labstreaminglayer/App-EGIAmpServer)
+  - This project is the successor to https://github.com/dermanu/NU-BCI
