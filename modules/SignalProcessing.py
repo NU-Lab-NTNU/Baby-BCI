@@ -173,6 +173,8 @@ class SignalProcessing(SubModule):
             self.set_error_encountered()
 
         logging.info("signalprocessing: exiting main_loop.")
+        self.close()
+        self.stop_flag = False
 
 
 if __name__ == "__main__":

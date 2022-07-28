@@ -32,6 +32,7 @@ class EprimeServer(SubModule):
 
         # Trial data
         self.speed = 0
+        
 
     def create_socket(self):
         try:
@@ -40,9 +41,15 @@ class EprimeServer(SubModule):
             logging.info(f"Created socket at {self.s.getsockname()}")
             logging.info("Waiting for E-prime to connect...")
             self.s.listen(1)
-            self.conn, self.addr = self.s.accept()
-            if self.conn is not None:
-                logging.info(f"Connected to client at address: {self.addr}")
+            while self.is_ok() and self.conn is None:
+                self.s.settimeout(1)
+                try:
+                    self.conn, self.addr = self.s.accept()
+                    if self.conn is not None:
+                        logging.info(f"Connected to client at address: {self.addr}")
+                        
+                except socket.timeout:
+                    pass
 
         except:
             logging.error(
@@ -62,24 +69,31 @@ class EprimeServer(SubModule):
 
         str_msg = byte_msg.decode("utf-8")
         logging.debug(f"Received message: {str_msg}")
-        msg_type, msg_value = str_msg[0], int(str_msg[2])
-        if msg_type not in ["R", "T"] or msg_value not in [0, 1, 2, 3, 4]:
-            logging.warning(f"Invalid message: {byte_msg}")
+        try:
+            msg_type, msg_value = str_msg[0], int(str_msg[2])
+            if msg_type not in ["R", "T"] or msg_value not in [0, 1, 2, 3, 4]:
+                logging.warning(f"Invalid message: {byte_msg}")
+
+        except IndexError:
+            if not self.error_encountered.is_set():
+                logging.error(f"eprimeserver: unexpected length of eprime_msg ({len(str_msg)})")
+                self.set_error_encountered()
+            msg_type = "0"
+            msg_value = 0
 
         return msg_type, msg_value
 
     def wait_for_eprime_msg(self):
         """
-        Waits for message from E-prime.
+        Waits 1 second for message from E-prime.
         Returns message type and value.
         """
         msg = None
-        while msg is None and not self.stop_flag:
-            self.s.settimeout(1)
-            try:
-                msg = self.conn.recv(5)
-            except socket.timeout:
-                pass
+        self.s.settimeout(1)
+        try:
+            msg = self.conn.recv(5)
+        except socket.timeout:
+            pass
 
         self.s.settimeout(None)
         msg_type, msg_value = self._parse_msg(msg)
@@ -91,10 +105,6 @@ class EprimeServer(SubModule):
         self.conn.sendto(byte_msg, self.addr)
         logging.debug(f"Message sent: {str_msg}")
         return
-
-    def send_exit_msg(self):
-        exit_msg = "E 0"
-        self.send_msg(exit_msg)
 
     def main_loop(self):
         try:
@@ -151,8 +161,6 @@ class EprimeServer(SubModule):
                         logging.debug("eprimeserver: clearing msg_ready_for_eprime")
                         self.msg_ready_for_eprime.clear()
 
-            # self.send_exit_msg()
-
         except:
             logging.error(
                 f"eprimeserver: Error encountered in main_loop: {traceback.format_exc()}"
@@ -160,6 +168,8 @@ class EprimeServer(SubModule):
             self.set_error_encountered()
 
         logging.info("eprimeserver: exiting main_loop.")
+        self.close()
+        self.stop_flag = False
 
     def main_loop_test(self):
         while self.is_ok():
@@ -199,12 +209,17 @@ class EprimeServer(SubModule):
         logging.info("eprimeserver: exiting main_loop")
 
     def close(self):
-        self.conn.close()
-        self.connected = False
+        try:
+            exit_msg = "E 0"
+            self.send_msg(exit_msg)
 
-    def deconstruct(self):
-        self.close()
-        del self
+        except:
+            logging.error(
+                f"eprimeserver: Error encountered when sending exit message: {traceback.format_exc()}"
+            )
+            self.set_error_encountered()
+
+        self.conn.close()
 
 
 if __name__ == "__main__":

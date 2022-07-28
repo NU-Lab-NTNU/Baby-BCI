@@ -242,11 +242,6 @@ class AmpServerClient(SubModule):
         data_chunk = self.recvfrom("data", 4096, verbose)
         return cmd_chunk, not_chunk, data_chunk
 
-    def close(self):
-        self.command_socket.close()
-        self.notification_socket.close()
-        self.data_socket.close()
-
     def is_duplicate(self, counter):
         return counter % self.duplication_factor
 
@@ -261,7 +256,7 @@ class AmpServerClient(SubModule):
         start_time = time.perf_counter()
 
         try:
-            while self.is_ok() and not self.stop_flag:
+            while self.is_ok():
                 # Check sample_rate
                 header_buf = None
                 while header_buf is None:
@@ -310,14 +305,9 @@ class AmpServerClient(SubModule):
 
                     counter = counter + 1
 
-                    if self.stop_flag:
+                    if not self.is_ok():
                         break
 
-            self.stop_listening()
-            """
-                @todo stop amplifier when exiting main_loop
-            """
-            self.stop_flag = False
             self.first_packet_received = False
 
         except:
@@ -327,6 +317,8 @@ class AmpServerClient(SubModule):
             self.set_error_encountered()
 
         logging.info("ampclient: exiting main_loop")
+        self.close()
+        self.stop_flag = False
 
     def get_samples(self, n):
         """
@@ -338,9 +330,16 @@ class AmpServerClient(SubModule):
     def start_listening(self):
         self.send_data_cmd("cmd_ListenToAmp", str(self.amp_id), "0", "0")
 
-    def stop_listening(self):
+    def stop_amp(self):
         self.send_data_cmd("cmd_StopListeningToAmp", str(self.amp_id), "0", "0")
+        _ = self.send_cmd("cmd_Stop", str(self.amp_id), "0", "0")
 
+    def close(self):
+        self.stop_amp()
+
+        self.command_socket.close()
+        self.notification_socket.close()
+        self.data_socket.close()
 
 if __name__ == "__main__":
     # logging.basicConfig(filename='ampserverclient.log', filemode='w', level=logging.DEBUG)

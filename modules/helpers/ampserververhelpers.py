@@ -192,5 +192,5 @@ class AmpServerSocket:
         self.s.settimeout(None)
 
     def close(self):
-        self.s.shutdown()
+        self.s.shutdown(socket.SHUT_WR)
         self.s.close()
