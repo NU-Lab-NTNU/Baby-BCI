@@ -1,5 +1,5 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-# NU-BCI-v4
+# NU-BCI
 
 WARNING:
   - The project is currently in an unfinished, minimally tested, state and in rapid development
