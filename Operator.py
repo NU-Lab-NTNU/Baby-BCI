@@ -65,6 +65,8 @@ class Operator:
         """
             Startup of modules
         """
+        self.error = False
+
         t_eprime = Thread(target=self.eprimeserver.startup)
         t_eprime.start()
         t_amp = Thread(target=self.ampclient.startup)
@@ -78,22 +80,23 @@ class Operator:
         t_sigproc_done = False
         error_found = False
 
-        while not threads_done and not error_found:
-            error_found = self.check_submodules()
+        while not threads_done:
+            if not error_found:
+                error_found = self.check_submodules()
             if not t_eprime_done:
-                t_eprime.join(0.25)
+                t_eprime.join(0.1)
                 t_eprime_done = not t_eprime.is_alive()
                 if t_eprime_done:
                     logger.info("t_eprime joined")
 
             if not t_amp_done:
-                t_amp.join(0.25)
+                t_amp.join(0.1)
                 t_amp_done = not t_amp.is_alive()
                 if t_amp_done:
                     logger.info("t_amp joined")
 
             if not t_sigproc_done:
-                t_sigproc.join(0.25)
+                t_sigproc.join(0.1)
                 t_sigproc_done = not t_sigproc.is_alive()
                 if t_sigproc_done:
                     logger.info("t_sigproc joined")

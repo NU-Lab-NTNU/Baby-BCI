@@ -1,5 +1,4 @@
 from Operator import Operator
-import logging
 
 from modules.helpers.util import get_logger
 
@@ -11,17 +10,32 @@ class CommandLineInterface:
         self.operator = Operator()
 
     def setup(self):
-        x = input("Hi, do you want to configure stuff? (y/n)")
+        x = input("Ready for startup? [y/n/q]")
         if x == "y":
-            # Configure stuff
-            pass
+            self.operator.startup()
 
-        self.operator.startup()
+        return x
+
+    def do_experiment(self):
+        x = "n"
+        while x == "n":
+            x = input("Start experiment? [y/n/q]")
+            if x == "y":
+                self.operator.main_loop()
+
+        return x
 
     def mainloop(self):
-        pass
+
+        proceed = True
+        while proceed == True:
+            x = self.setup()
+            if not self.operator.error and x == "y":
+                x = self.do_experiment()
+
+            proceed = x != "q"
+
 
 if __name__ == "__main__":
     cmdui = CommandLineInterface()
-    cmdui.setup()
     cmdui.mainloop()
