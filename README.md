@@ -22,6 +22,28 @@ What this project is not:
   - A general BCI framework.
     * This project was started since other BCI frameworks for some reason did not offer the functionality our lab needed. If a general framework is what you need, there are other, probably more suitable projects, such as [BCI2000](https://www.bci2000.org/mediawiki/index.php/Main_Page) or [Timeflux](https://timeflux.io/)
  
+ Usage:
+  - Installation:
+    ```
+    git clone https://github.com/vegardkb/NU-BCI.git
+    cd NU-BCI/
+    pip install -r requirements.txt
+    ```
+  - How to run first time:
+    ```
+    python config/generate_config.py
+    python CommandLineInterface.py
+    ```
+    If you'd also like to see the debug log open a terminal or command prompt, cd into NU-BCI and try:
+    ```
+    tail -f log/debug.log
+    ```
+    or if tail doesn't work(windows):
+    ```
+    powershell
+    Get-Content log/debug.log -Wait
+    ```
+ 
 Timeline:
   - Future plans:
     * v1.0.0 Command line interface
