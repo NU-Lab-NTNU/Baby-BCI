@@ -1,7 +1,9 @@
 import threading
 import logging
 import traceback
+from modules.helpers.util import get_logger
 
+logger = get_logger(__name__)
 """
     Parent class for submodules.
     This class serves two functions:
@@ -74,7 +76,7 @@ class SubModule:
                     self.set_finished()
 
         except:
-            logging.error(
+            logger.error(
                 f"submodule: Error encountered in main_loop: {traceback.format_exc()}"
             )
             self.error_encountered.set()

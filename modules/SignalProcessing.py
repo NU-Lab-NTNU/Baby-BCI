@@ -6,6 +6,9 @@ import logging
 import modules.helpers.util as util
 import traceback
 from modules.SubModule import SubModule
+from modules.helpers.util import get_logger
+
+logger = get_logger(__name__)
 
 """
     Contains the class SignalProcessing (should maybe be renamed).
@@ -72,13 +75,13 @@ class SignalProcessing(SubModule):
         # File stuff
         self.folder_path = "data/" + self.experiment_fname
         if os.path.isdir(self.folder_path):
-            logging.warning(
-                f"signalprocessing: folder {self.folder_path} already exists, data might be overwritten."
+            logger.warning(
+                f"folder {self.folder_path} already exists, data might be overwritten."
             )
 
         else:
             os.mkdir(self.folder_path)
-            logging.info(f"signalprocessing: created data folder: {self.folder_path}")
+            logger.info(f"created data folder: {self.folder_path}")
 
     def startup(self):
         """
@@ -88,22 +91,22 @@ class SignalProcessing(SubModule):
             time.sleep(0.5)
 
         except:
-            logging.error(
-                f"signalprocessing: Error encountered in startup: {traceback.format_exc()}"
+            logger.error(
+                f"Error encountered in startup: {traceback.format_exc()}"
             )
             self.set_error_encountered()
 
     def wait_for_data(self):
         timeout = 1
-        logging.debug("signalprocessing: waiting for trial_data_ready")
+        logger.debug("waiting for trial_data_ready")
         while self.is_ok():
             flag = self.trial_data_ready.wait(timeout)
             if flag:
-                logging.debug("signalprocessing: clearing trial_data_ready")
+                logger.debug("clearing trial_data_ready")
                 self.trial_data_ready.clear()
                 return True
 
-        logging.info("signalprocessing: stop_flag was set whilst waiting for data.")
+        logger.info("stop_flag was set whilst waiting for data.")
         return False
 
     def process(self):
@@ -119,8 +122,8 @@ class SignalProcessing(SubModule):
         # Acount for delay
         if self.delay > self.time_per_trial - self.time_start:
             discard = 1
-            logging.warning(
-                "signalprocessing: too large delay, trial discarded. Increase time_per_trial or speed up the system somehow."
+            logger.warning(
+                "too large delay, trial discarded. Increase time_per_trial or speed up the system somehow."
             )
         else:
             start = int(self.time_per_trial - self.time_start - self.delay)
@@ -145,7 +148,7 @@ class SignalProcessing(SubModule):
 
     def create_feedback_msg(self):
         self.feedback_msg = f"y = {self.y[-1]}, y_prob = {round(self.y_prob[-1], 2)}, t = {self.t[-1]}, discard = {self.discard[-1]}"
-        logging.debug("signalprocessing: setting trial_processed")
+        logger.debug("setting trial_processed")
         self.trial_processed.set()
 
     def dump_data(self):
@@ -167,18 +170,18 @@ class SignalProcessing(SubModule):
 
                     self.dump_data()
         except:
-            logging.error(
-                f"signalprocessing: Error encountered in main_loop: {traceback.format_exc()}"
+            logger.error(
+                f"Error encountered in main_loop: {traceback.format_exc()}"
             )
             self.set_error_encountered()
 
-        logging.info("signalprocessing: exiting main_loop.")
+        logger.info("exiting main_loop.")
         self.close()
         self.stop_flag = False
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logger.debug)
     config = util.read_config("config.ini")
 
     sigproc = SignalProcessing(

@@ -16,7 +16,7 @@ class RingBuffer:
 
     def get_samples(self, n_read):
         if n_read > self.n_samples:
-            logging.warning(
+            logger.warning(
                 "ringbuffer: Trying to read more samples than buffer capacity"
             )
         read_to = self.write_index
@@ -27,17 +27,17 @@ class RingBuffer:
             # Loop around
             if read_to == 0:
                 x = self.buf[-n_read:]
-                logging.debug("ringbuffer: read_to == 0")
+                logger.debug("ringbuffer: read_to == 0")
 
             else:
-                logging.debug(f"ringbuffer: read_to != 0 (read_to = {read_to})")
+                logger.debug(f"ringbuffer: read_to != 0 (read_to = {read_to})")
                 p2 = self.buf[0:read_to]
                 p1 = self.buf[-diff:]
                 x = np.concatenate([p1, p2])
 
         else:
             # No need to loop around
-            logging.debug("ringbuffer: diff <= 0")
+            logger.debug("ringbuffer: diff <= 0")
             x = self.buf[-diff:read_to]
 
         assert x.shape[0] == n_read
@@ -49,7 +49,7 @@ class RingBuffer:
         tmp = self.write_index + 1
         if tmp >= self.n_samples and not self.full:
             self.full = True
-            logging.debug("ringbuffer: buffer filled up")
+            logger.debug("ringbuffer: buffer filled up")
 
         self.write_index = (tmp) % self.n_samples
 

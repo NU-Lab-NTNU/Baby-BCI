@@ -38,12 +38,12 @@ class DummyAmpServerClient(SubModule):
                     time.sleep(sleep_time)
 
         except:
-            logging.error(
+            logger.error(
                 f"ampclient: Error encountered in main_loop: {traceback.format_exc()}"
             )
             self.set_error_encountered()
 
-        logging.info("ampclient: exiting main_loop")
+        logger.info("ampclient: exiting main_loop")
 
     def start_listening(self):
         time.sleep(0.2)

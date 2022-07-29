@@ -4,3 +4,4 @@ data/*
 !review.py
 modules/__pycache__/*
 modules/helpers/__pycache__/*
+*.log

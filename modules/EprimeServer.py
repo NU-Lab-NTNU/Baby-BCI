@@ -5,7 +5,9 @@ import threading
 import modules.helpers.util as util
 import traceback
 from modules.SubModule import SubModule
+from modules.helpers.util import get_logger
 
+logger = get_logger(__name__)
 
 class EprimeServer(SubModule):
     def __init__(self, _socket_address, _port) -> None:
@@ -38,22 +40,22 @@ class EprimeServer(SubModule):
         try:
             self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.s.bind((self.socket_address, self.port))
-            logging.info(f"Created socket at {self.s.getsockname()}")
-            logging.info("Waiting for E-prime to connect...")
+            logger.info(f"Created socket at {self.s.getsockname()}")
+            logger.info("Waiting for E-prime to connect...")
             self.s.listen(1)
             while self.is_ok() and self.conn is None:
                 self.s.settimeout(1)
                 try:
                     self.conn, self.addr = self.s.accept()
                     if self.conn is not None:
-                        logging.info(f"Connected to client at address: {self.addr}")
+                        logger.info(f"Connected to client at address: {self.addr}")
 
                 except socket.timeout:
                     pass
 
         except:
-            logging.error(
-                f"eprimeserver: Error encountered in startup: {traceback.format_exc()}"
+            logger.error(
+                f"Error encountered in startup: {traceback.format_exc()}"
             )
             self.set_error_encountered()
 
@@ -68,15 +70,15 @@ class EprimeServer(SubModule):
             return "0", 0
 
         str_msg = byte_msg.decode("utf-8")
-        logging.debug(f"Received message: {str_msg}")
+        logger.debug(f"Received message: {str_msg}")
         try:
             msg_type, msg_value = str_msg[0], int(str_msg[2])
             if msg_type not in ["R", "T"] or msg_value not in [0, 1, 2, 3, 4]:
-                logging.warning(f"Invalid message: {byte_msg}")
+                logger.warning(f"Invalid message: {byte_msg}")
 
         except IndexError:
             if not self.error_encountered.is_set():
-                logging.error(f"eprimeserver: unexpected length of eprime_msg ({len(str_msg)})")
+                logger.error(f"unexpected length of eprime_msg ({len(str_msg)})")
                 self.set_error_encountered()
             msg_type = "0"
             msg_value = 0
@@ -103,7 +105,7 @@ class EprimeServer(SubModule):
     def send_msg(self, str_msg):
         byte_msg = str_msg.encode("utf-8")
         self.conn.sendto(byte_msg, self.addr)
-        logging.debug(f"Message sent: {str_msg}")
+        logger.debug(f"Message sent: {str_msg}")
         return
 
     def main_loop(self):
@@ -126,8 +128,8 @@ class EprimeServer(SubModule):
                         Experiment finished.
                         -> Signal to operator that we are done
                         """
-                        logging.info(
-                            "eprimeserver: experiment finished, closing tcp connection..."
+                        logger.info(
+                            "experiment finished, closing tcp connection..."
                         )
                         self.close()
                         self.set_finished()
@@ -139,7 +141,7 @@ class EprimeServer(SubModule):
                         msg: T 2/3/4
                         Looming stimulus of duration 2/3/4s started.
                         """
-                        logging.debug("eprimeserver: stimulus started")
+                        logger.debug("stimulus started")
                         self.speed = msg_value
 
                     elif msg_value == 1:
@@ -150,24 +152,24 @@ class EprimeServer(SubModule):
                         """
                         self.time_of_trial_finish = time.perf_counter()
 
-                        logging.debug("eprimeserver: setting trial_finished")
+                        logger.debug("setting trial_finished")
                         self.trial_finished.set()
 
-                        logging.debug("eprimeserver: waiting for msg_ready_for_eprime")
+                        logger.debug("waiting for msg_ready_for_eprime")
                         self.msg_ready_for_eprime.wait()
 
                         self.send_msg(self.msg_for_eprime)
 
-                        logging.debug("eprimeserver: clearing msg_ready_for_eprime")
+                        logger.debug("clearing msg_ready_for_eprime")
                         self.msg_ready_for_eprime.clear()
 
         except:
-            logging.error(
-                f"eprimeserver: Error encountered in main_loop: {traceback.format_exc()}"
+            logger.error(
+                f"Error encountered in main_loop: {traceback.format_exc()}"
             )
             self.set_error_encountered()
 
-        logging.info("eprimeserver: exiting main_loop.")
+        logger.info("exiting main_loop.")
         self.close()
         self.stop_flag = False
 
@@ -180,14 +182,14 @@ class EprimeServer(SubModule):
                     self.send_msg("R 1\n")
 
                 elif msg_value == 0:
-                    logging.info("Experiment finished, closing tcp connection...")
+                    logger.info("Experiment finished, closing tcp connection...")
                     self.close()
                     self.set_finished()
                     break
 
             elif msg_type == "T":
                 if msg_value in [2, 3, 4]:
-                    logging.debug("Stimulus started")
+                    logger.debug("Stimulus started")
                     self.speed = msg_value
 
                 elif msg_value == 1:
@@ -195,18 +197,18 @@ class EprimeServer(SubModule):
                     Wait for operator to provide return message
                     """
                     self.time_of_trial_finish = time.perf_counter()
-                    logging.debug("eprimeserver: setting trial_finished")
+                    logger.debug("setting trial_finished")
                     self.trial_finished.set()
-                    logging.debug("eprimeserver: waiting for msg_ready_for_eprime")
+                    logger.debug("waiting for msg_ready_for_eprime")
                     # self.msg_ready_for_eprime.wait()  # Should maybe have a timeout to avoid waiting too long
                     self.send_msg("E " + str(self.speed) + "\n")
                     # self.send_msg(self.msg_for_eprime)
-                    logging.debug("eprimeserver: clearing msg_ready_for_eprime")
+                    logger.debug("clearing msg_ready_for_eprime")
                     self.msg_ready_for_eprime.clear()
 
         self.send_exit_msg()
 
-        logging.info("eprimeserver: exiting main_loop")
+        logger.info("exiting main_loop")
 
     def close(self):
         try:
@@ -214,8 +216,8 @@ class EprimeServer(SubModule):
             self.send_msg(exit_msg)
 
         except:
-            logging.error(
-                f"eprimeserver: Error encountered when sending exit message: {traceback.format_exc()}"
+            logger.error(
+                f"Error encountered when sending exit message: {traceback.format_exc()}"
             )
             self.set_error_encountered()
 
@@ -223,7 +225,7 @@ class EprimeServer(SubModule):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logger.debug)
     config = util.read_config("config.ini")
 
     eprimeserver = EprimeServer(

@@ -84,19 +84,19 @@ class DummyEprimeServer(SubModule):
 
                 if msg_type == "R":
                     if msg_value == 1:
-                        logging.info("eprimeserver: experiment started")
+                        logger.info("experiment started")
                         self.experiment_started = True
 
                     elif msg_value == 0:
-                        logging.info(
-                            "eprimeserver: experiment finished, closing tcp connection..."
+                        logger.info(
+                            "experiment finished, closing tcp connection..."
                         )
                         self.set_finished()
                         break
 
                 elif msg_type == "T":
                     if msg_value in [2, 3, 4]:
-                        logging.debug("eprimeserver: stimulus started")
+                        logger.debug("stimulus started")
                         self.speed = msg_value
                         self.trial_started = True
 
@@ -106,20 +106,20 @@ class DummyEprimeServer(SubModule):
                         """
                         self.trial_started = False
                         self.time_of_trial_finish = time.perf_counter()
-                        logging.debug("eprimeserver: setting trial_finished")
+                        logger.debug("setting trial_finished")
                         self.trial_finished.set()
-                        logging.debug("eprimeserver: waiting for msg_ready_for_eprime")
+                        logger.debug("waiting for msg_ready_for_eprime")
                         self.msg_ready_for_eprime.wait()  # Should maybe have a timeout to avoid waiting too long
-                        logging.debug("eprimeserver: clearing msg_ready_for_eprime")
+                        logger.debug("clearing msg_ready_for_eprime")
                         self.msg_ready_for_eprime.clear()
 
         except:
-            logging.error(
-                f"eprimeserver: Error encountered in main_loop: {traceback.format_exc()}"
+            logger.error(
+                f"Error encountered in main_loop: {traceback.format_exc()}"
             )
             self.set_error_encountered()
 
-        logging.info("eprimeserver: exiting main_loop")
+        logger.info("exiting main_loop")
 
     def close(self):
         self.conn.close()
@@ -131,7 +131,7 @@ class DummyEprimeServer(SubModule):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logger.debug)
     config = util.read_config("config.ini")
 
     eprimeserver = DummyEprimeServer(

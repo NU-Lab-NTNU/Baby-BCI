@@ -6,6 +6,9 @@ import traceback
 from modules.helpers.EEGBuffer import RingBuffer
 import modules.helpers.ampserververhelpers as amp
 from modules.SubModule import SubModule
+from modules.helpers.util import get_logger
+
+logger = get_logger(__name__)
 
 
 class AmpServerClient(SubModule):
@@ -98,7 +101,7 @@ class AmpServerClient(SubModule):
             _, _, _ = self.recvall(verbose=2)
             self.init_amplifier()
         except:
-            logging.error(
+            logger.error(
                 f"ampclient: Error encountered in startup: {traceback.format_exc()}"
             )
             self.set_error_encountered()
@@ -114,10 +117,10 @@ class AmpServerClient(SubModule):
     def _get_amplifier_details(self):
         response = self.send_cmd("cmd_GetAmpDetails", str(self.amp_id), "0", "0")
         pretty_response = amp.parse_status_message(repr(response))
-        logging.debug(f"AmpDetails\n{pretty_response}")
+        logger.debug(f"AmpDetails\n{pretty_response}")
 
     def init_amplifier(self):
-        logging.info("Initializing amplifier...")
+        logger.info("Initializing amplifier...")
 
         """ Because it is possible that the amplifier was not properly disconnected from,
         disconnect and shut down before starting. This will ensure that the
@@ -170,19 +173,19 @@ class AmpServerClient(SubModule):
         # Start data stream
         start_response = self.send_cmd("cmd_Start", str(self.amp_id), "0", "0")
 
-        logging.debug(self.command_socket.name.upper())
-        # logging.debug(f"Stop\n{amp.parse_status_message(repr(stop_response))}")
-        # logging.debug(f"SetPower\n{amp.parse_status_message(repr(set_power_off_response))}")
-        # logging.debug(f"SetPower\n{amp.parse_status_message(repr(set_power_on_response))}")
-        logging.debug(
+        logger.debug(self.command_socket.name.upper())
+        # logger.debug(f"Stop\n{amp.parse_status_message(repr(stop_response))}")
+        # logger.debug(f"SetPower\n{amp.parse_status_message(repr(set_power_off_response))}")
+        # logger.debug(f"SetPower\n{amp.parse_status_message(repr(set_power_on_response))}")
+        logger.debug(
             f"SetFilterAndDecimate\n{amp.parse_status_message(repr(set_filter_and_decimate_response))}"
         )
-        logging.debug(
+        logger.debug(
             f"SetDecimatedRate\n{amp.parse_status_message(repr(set_sample_rate_response))}"
         )
-        logging.debug(f"{mode}\n{amp.parse_status_message(repr(set_mode_response))}")
-        logging.debug(f"Start\n{amp.parse_status_message(repr(start_response))}")
-        logging.info("Amplifier initialized\n\n")
+        logger.debug(f"{mode}\n{amp.parse_status_message(repr(set_mode_response))}")
+        logger.debug(f"Start\n{amp.parse_status_message(repr(start_response))}")
+        logger.info("Amplifier initialized\n\n")
 
         self._get_amplifier_details()
 
@@ -211,7 +214,7 @@ class AmpServerClient(SubModule):
                     chunk = bytes(lst_chunk)
 
         else:
-            logging.warning(f"Invalid socket name: {socket}")
+            logger.warning(f"Invalid socket name: {socket}")
 
         if chunk is not None:
             if verbose <= 0:
@@ -224,13 +227,13 @@ class AmpServerClient(SubModule):
                 """
                 Minimal
                 """
-                logging.info(f"{name}: Received {len(chunk)} bytes.\n")
+                logger.info(f"{name}: Received {len(chunk)} bytes.\n")
 
             elif verbose >= 2:
                 """
                 Status messages, reformat and print.
                 """
-                logging.debug(
+                logger.debug(
                     f"{name.upper()}\n{amp.parse_status_message(repr(chunk))}\n\n"
                 )
 
@@ -271,7 +274,7 @@ class AmpServerClient(SubModule):
                 n_samples = int(self.data_header.length / first_packet.size)
 
                 if self.data_header.length % first_packet.size:
-                    logging.warning(
+                    logger.warning(
                         f"data_header.length is not a multiple of packet.size\ndata_header.length: {self.data_header.length}\npacket.size: {first_packet.size}\n"
                     )
 
@@ -285,7 +288,7 @@ class AmpServerClient(SubModule):
                         first_packet.read_packet(packet_buf)
                         sample = first_packet.eeg
                         net_code, n_channels = first_packet.get_net_code()
-                        logging.info(
+                        logger.info(
                             f"ampclient: net_code = {net_code.name}, n_channels = {n_channels}"
                         )
                         self.first_packet_received = True
@@ -301,7 +304,7 @@ class AmpServerClient(SubModule):
                             elapsed_1000 = time.perf_counter() - start_time
                             start_time = time.perf_counter()
                             self.rec_sample_rate = 1000.0 / elapsed_1000
-                            logging.info(
+                            logger.info(
                                 f"ampclient: unique data packet rate: {round(self.rec_sample_rate, 2)} Hz"
                             )
 
@@ -313,12 +316,12 @@ class AmpServerClient(SubModule):
             self.first_packet_received = False
 
         except:
-            logging.error(
+            logger.error(
                 f"ampclient: Error encountered in main_loop: {traceback.format_exc()}"
             )
             self.set_error_encountered()
 
-        logging.info("ampclient: exiting main_loop")
+        logger.info("ampclient: exiting main_loop")
         self.close()
         self.stop_flag = False
 
@@ -344,8 +347,8 @@ class AmpServerClient(SubModule):
         self.data_socket.close()
 
 if __name__ == "__main__":
-    # logging.basicConfig(filename='ampserverclient.log', filemode='w', level=logging.DEBUG)
-    logging.basicConfig(level=logging.DEBUG)
+    # logging.basicConfig(filename='ampserverclient.log', filemode='w', level=logger.debug)
+    logging.basicConfig(level=logger.debug)
     amp_client = AmpServerClient()
 
     amp_client.startup()

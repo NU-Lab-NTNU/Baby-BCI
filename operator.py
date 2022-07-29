@@ -1,13 +1,13 @@
 from modules.AmpServerClient import AmpServerClient
 from modules.EprimeServer import EprimeServer
 from modules.SignalProcessing import SignalProcessing
-from modules.helpers.util import read_config
+from modules.helpers.util import read_config, get_logger
 import modules.helpers.ampserververhelpers as amp
 
-import logging
 from threading import Thread
 import traceback
 
+logger = get_logger(__name__)
 
 class Operator:
     def __init__(self) -> None:
@@ -84,28 +84,28 @@ class Operator:
                 t_eprime.join(0.25)
                 t_eprime_done = not t_eprime.is_alive()
                 if t_eprime_done:
-                    logging.info("operator: t_eprime startup done")
+                    logger.info("t_eprime joined")
 
             if not t_amp_done:
                 t_amp.join(0.25)
                 t_amp_done = not t_amp.is_alive()
                 if t_amp_done:
-                    logging.info("operator: t_amp startup done")
+                    logger.info("t_amp joined")
 
             if not t_sigproc_done:
                 t_sigproc.join(0.25)
                 t_sigproc_done = not t_sigproc.is_alive()
                 if t_sigproc_done:
-                    logging.info("operator: t_sigproc startup done")
+                    logger.info("t_sigproc joined")
 
             threads_done = t_eprime_done and t_amp_done and t_sigproc_done
 
         if not error_found:
-            logging.info("operator: all startup threads are done")
+            logger.info("all startup threads are done")
 
         else:
             self.error = True
-            logging.error("operator: error occured on startup. exiting...")
+            logger.critical("error occured on startup. exiting...")
 
     def main_loop(self):
         """
@@ -123,7 +123,7 @@ class Operator:
                 if success:
                     self.send_return_msg_eprime()
 
-        logging.info("operator: exiting control_loop")
+        logger.info("exiting control_loop")
 
     def control_loop(self):
         if not self.error:
@@ -144,14 +144,14 @@ class Operator:
             t_sigproc.join()
 
         else:
-            logging.warning("operator: error flag is raised, can't enter control_loop")
+            logger.warning("error flag is raised, can't enter control_loop")
 
     """
         E-prime stuff
     """
 
     def wait_for_trial(self):
-        logging.debug("operator: waiting for trial_finished")
+        logger.debug("waiting for trial_finished")
         flag = False
         finished_or_error = False
         while not (flag or finished_or_error):
@@ -159,7 +159,7 @@ class Operator:
             finished_or_error = self.check_submodules()
 
         if not finished_or_error:
-            logging.debug("operator: clearing trial_finished")
+            logger.debug("clearing trial_finished")
             self.eprimeserver.trial_finished.clear()
             return True
 
@@ -167,7 +167,7 @@ class Operator:
 
     def send_return_msg_eprime(self):
         self.eprimeserver.msg_for_eprime = self.sigproc.feedback_msg
-        logging.debug("operator: setting msg_ready_for_eprime")
+        logger.debug("setting msg_ready_for_eprime")
         self.eprimeserver.msg_ready_for_eprime.set()
 
     """
@@ -182,15 +182,15 @@ class Operator:
             self.sigproc.delay = (
                 self.time_of_data_fetched - self.eprimeserver.time_of_trial_finish
             ) * 1000
-            logging.info(
-                f"operator: delay E-prime to AmpServer client: {round(self.sigproc.delay, 2)} milliseconds"
+            logger.info(
+                f"delay E-prime to AmpServer client: {round(self.sigproc.delay, 2)} milliseconds"
             )
-            logging.debug("operator: setting trial_data_ready")
+            logger.debug("setting trial_data_ready")
             self.sigproc.trial_data_ready.set()
 
         except:
-            logging.error(
-                f"operator: Error encountered in get_trial_eeg: {traceback.format_exc()}"
+            logger.error(
+                f"Error encountered in get_trial_eeg: {traceback.format_exc()}"
             )
             self.error = True
 
@@ -209,22 +209,22 @@ class Operator:
                 wave_freq,
             )
 
-            logging.debug(
+            logger.debug(
                 f"SetWaveShape\n{amp.parse_status_message(repr(set_wave_shape_response))}"
             )
-            logging.debug(
+            logger.debug(
                 f"SetCalibrationSignalFreq\n{amp.parse_status_message(repr(set_signal_freq_response))}"
             )
 
-            logging.info(
-                f"operator: signal shape set to {self.sig_wave_name[int(wave_type)]} with freq = {wave_freq} Hz"
+            logger.info(
+                f"signal shape set to {self.sig_wave_name[int(wave_type)]} with freq = {wave_freq} Hz"
             )
 
             self.sig_type_idx = self.sig_type_idx + 1
 
         except:
-            logging.error(
-                f"operator: Error encountered in set_signal_type: {traceback.format_exc()}"
+            logger.error(
+                f"Error encountered in set_signal_type: {traceback.format_exc()}"
             )
             self.error = True
 
@@ -233,7 +233,7 @@ class Operator:
     """
 
     def wait_for_processing(self):
-        logging.debug("operator: waiting for trial_processed")
+        logger.debug("waiting for trial_processed")
         flag = False
         finished_or_error = False
         while not (flag or finished_or_error):
@@ -241,7 +241,7 @@ class Operator:
             finished_or_error = self.check_submodules()
 
         if not finished_or_error:
-            logging.debug("operator: clearing trial_processed")
+            logger.debug("clearing trial_processed")
             self.sigproc.trial_processed.clear()
             return True
 
@@ -253,27 +253,27 @@ class Operator:
 
     def check_submodules(self):
         if self.sigproc.error_encountered.is_set():
-            logging.error("operator: signalprocessing encountered an error")
+            logger.critical("signalprocessing encountered an error")
             self.error = True
 
         if self.ampclient.error_encountered.is_set():
-            logging.error("operator: ampclient encountered an error")
+            logger.critical("ampclient encountered an error")
             self.error = True
 
         if self.eprimeserver.error_encountered.is_set():
-            logging.error("operator: eprimeserver encountered an error")
+            logger.critical("eprimeserver encountered an error")
             self.error = True
 
         if self.sigproc.task_finished.is_set():
-            logging.info("operator: signalprocessing finished its task")
+            logger.info("signalprocessing finished its task")
             self.finished = True
 
         if self.ampclient.task_finished.is_set():
-            logging.info("operator: ampclient finished its task")
+            logger.info("ampclient finished its task")
             self.finished = True
 
         if self.eprimeserver.task_finished.is_set():
-            logging.info("operator: eprimeserver finished its task")
+            logger.info("eprimeserver finished its task")
             self.finished = True
 
         if not (self.error or self.finished):
@@ -286,8 +286,6 @@ class Operator:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
-
     operator = Operator()
     operator.startup()
 
