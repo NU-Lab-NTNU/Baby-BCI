@@ -160,7 +160,7 @@ class AmpServerClient(SubModule):
             # Start data stream
             _ = self.send_cmd("cmd_Start", str(self.amp_id), "0", "0")
 
-            logger.info("Amplifier initialized in mode {amp_mode}\n\n")
+            logger.info(f"Amplifier initialized in mode {amp_mode}\n\n")
 
             self._get_amplifier_details()
 

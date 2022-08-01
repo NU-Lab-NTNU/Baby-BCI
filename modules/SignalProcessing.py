@@ -88,6 +88,7 @@ class SignalProcessing(SubModule):
         In the future this should load models for preprocessing/feature extraction, classification and regression
         """
         try:
+            logger.debug("Entering startup")
             time.sleep(0.5)
 
         except:

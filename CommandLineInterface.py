@@ -21,7 +21,7 @@ class CommandLineInterface:
         while x == "n":
             x = input("Start experiment? [y/n/q]")
             if x == "y":
-                self.operator.main_loop()
+                self.operator.control_loop()
 
         return x
 

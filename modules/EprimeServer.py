@@ -38,6 +38,7 @@ class EprimeServer(SubModule):
 
     def startup(self):
         try:
+            logger.debug("Entering startup")
             self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.s.bind((self.socket_address, self.port))
             logger.info(f"Created socket at {self.s.getsockname()}")
@@ -102,6 +103,14 @@ class EprimeServer(SubModule):
 
         return msg_type, msg_value
 
+    def wait_for_feedback_msg(self):
+        ready = False
+        while not (self.stop_flag or ready):
+            ready = self.msg_ready_for_eprime.wait(5)
+        
+        success = not self.stop_flag
+        return success        
+
     def send_msg(self, str_msg):
         byte_msg = str_msg.encode("utf-8")
         self.conn.sendto(byte_msg, self.addr)
@@ -156,12 +165,15 @@ class EprimeServer(SubModule):
                         self.trial_finished.set()
 
                         logger.debug("waiting for msg_ready_for_eprime")
-                        self.msg_ready_for_eprime.wait()
-
-                        self.send_msg(self.msg_for_eprime)
-
-                        logger.debug("clearing msg_ready_for_eprime")
-                        self.msg_ready_for_eprime.clear()
+                        success = self.wait_for_feedback_msg()
+                        if success:
+                            self.send_msg(self.msg_for_eprime)
+    
+                            logger.debug("clearing msg_ready_for_eprime")
+                            self.msg_ready_for_eprime.clear()
+                            
+                        else:
+                            pass
 
         except:
             logger.error(
@@ -222,6 +234,8 @@ class EprimeServer(SubModule):
             self.set_error_encountered()
 
         self.conn.close()
+        self.conn = None
+        self.addr = None
 
 
 if __name__ == "__main__":

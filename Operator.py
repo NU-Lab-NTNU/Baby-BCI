@@ -66,6 +66,14 @@ class Operator:
             Startup of modules
         """
         self.error = False
+        self.finished = False
+        
+        self.eprimeserver.error_encountered.clear()
+        self.ampclient.error_encountered.clear()
+        self.sigproc.error_encountered.clear()
+        self.eprimeserver.task_finished.clear()
+        self.ampclient.task_finished.clear()
+        self.sigproc.task_finished.clear()
 
         t_eprime = Thread(target=self.eprimeserver.startup)
         t_eprime.start()
@@ -118,18 +126,20 @@ class Operator:
         while not (self.error or self.finished):
             success = self.wait_for_trial()
             if success:
-                self.get_trial_eeg()
-                if self.mode == "test":
-                    self.set_signal_type()
-
-                success = self.wait_for_processing()
-                if success:
-                    self.send_return_msg_eprime()
+                if self.get_trial_eeg():
+                    if self.mode == "test":
+                        self.set_signal_type()
+    
+                    success = self.wait_for_processing()
+                    if success:
+                        self.send_return_msg_eprime()
+                        
+            self.check_submodules()
 
         logger.info("exiting control_loop")
 
     def control_loop(self):
-        if not self.error:
+        if not (self.error or self.finished):
 
             t_amp = Thread(target=self.ampclient.main_loop)
             t_amp.start()
@@ -146,8 +156,11 @@ class Operator:
             t_eprime.join()
             t_sigproc.join()
 
-        else:
-            logger.warning("error flag is raised, can't enter control_loop")
+        elif self.error:
+            logger.error("error flag is raised, can't enter control_loop")
+        
+        elif self.finished:
+            logger.warning("finished flag is raised, can't enter control_loop")
 
     """
         E-prime stuff
@@ -190,33 +203,28 @@ class Operator:
             )
             logger.debug("setting trial_data_ready")
             self.sigproc.trial_data_ready.set()
+            return True
 
         except:
             logger.error(
                 f"Error encountered in get_trial_eeg: {traceback.format_exc()}"
             )
             self.error = True
+            return False
 
     def set_signal_type(self):
         try:
             wave_type = str(self.sig_wave[self.sig_type_idx % len(self.sig_wave)])
             wave_freq = str(self.sig_freq[self.sig_type_idx % len(self.sig_freq)])
 
-            set_wave_shape_response = self.ampclient.send_cmd(
+            _ = self.ampclient.send_cmd(
                 "cmd_SetWaveShape", str(self.ampclient.amp_id), "0", wave_type
             )
-            set_signal_freq_response = self.ampclient.send_cmd(
+            _ = self.ampclient.send_cmd(
                 "cmd_SetCalibrationSignalFreq",
                 str(self.ampclient.amp_id),
                 "0",
                 wave_freq,
-            )
-
-            logger.debug(
-                f"SetWaveShape\n{amp.parse_status_message(repr(set_wave_shape_response))}"
-            )
-            logger.debug(
-                f"SetCalibrationSignalFreq\n{amp.parse_status_message(repr(set_signal_freq_response))}"
             )
 
             logger.info(
