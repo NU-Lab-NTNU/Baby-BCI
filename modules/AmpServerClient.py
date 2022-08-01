@@ -109,15 +109,21 @@ class AmpServerClient(SubModule):
     def send_cmd(self, command, ampId, channel, value):
         self.command_socket.send_command(command, ampId, channel, value)
         response = self.command_socket.read_chunk(4096, 2)
-        return response
+        pretty_response = amp.parse_status_message(repr(response))
+        error = "status error" in pretty_response
+        if error:
+            logger.critical(f"Command: {command} to {self.command_socket.name} returned status error. Check connection and command syntax")
+            raise ConnectionError
+        else:
+            logger.debug(f"Command: {command} to {self.command_socket.name} returned status complete.")
+        return pretty_response
 
     def send_data_cmd(self, command, ampId, channel, value):
         self.data_socket.send_command(command, ampId, channel, value)
 
     def _get_amplifier_details(self):
         response = self.send_cmd("cmd_GetAmpDetails", str(self.amp_id), "0", "0")
-        pretty_response = amp.parse_status_message(repr(response))
-        logger.debug(f"AmpDetails\n{pretty_response}")
+        logger.info(f"AmpDetails\n{response}")
 
     def init_amplifier(self):
         logger.info("Initializing amplifier...")
@@ -126,68 +132,44 @@ class AmpServerClient(SubModule):
         disconnect and shut down before starting. This will ensure that the
         packetCounter is reset. """
 
-        set_mode_response = self.send_cmd(
-            "cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0"
-        )
-        mode = "DefaultAcquisitionState"
-
-        # =============================================================================
-        #         # Stop amp
-        #         stop_response = self.send_cmd("cmd_Stop", str(self.amp_id), "0", "0")
-        #
-        #         # Turn off amp
-        #         set_power_off_response = self.send_cmd(
-        #             "cmd_SetPower", str(self.amp_id), "0", "0"
-        #         )
-        #
-        #         # Turn on amp
-        #         set_power_on_response = self.send_cmd(
-        #             "cmd_SetPower", str(self.amp_id), "0", "1"
-        #         )
-        # =============================================================================
-
-        # Turn on Filter and Decimation routines
-        set_filter_and_decimate_response = self.send_cmd(
-            "cmd_SetFilterAndDecimate", str(self.amp_id), "0", "1"
-        )
-
-        # Set sample rate
-        fs = str(self.sample_rate)
-        set_sample_rate_response = self.send_cmd(
-            "cmd_SetDecimatedRate", str(self.amp_id), "0", fs
-        )
-
-        """ set to default acquisition or default signal generation mode, depending on config (note: this should almost surely come before
-        the start call...) """
-        if self.mode == "test":
-            set_mode_response = self.send_cmd(
-                "cmd_DefaultSignalGeneration", str(self.amp_id), "0", "0"
-            )
-            mode = "DefaultSignalGeneration"
-        else:
-            set_mode_response = self.send_cmd(
+        try:
+            _ = self.send_cmd(
                 "cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0"
             )
-            mode = "DefaultAcquisitionState"
+            amp_mode = "DefaultAcquisitionState"
 
-        # Start data stream
-        start_response = self.send_cmd("cmd_Start", str(self.amp_id), "0", "0")
+            # Turn on Filter and Decimation routines
+            _ = self.send_cmd(
+                "cmd_SetFilterAndDecimate", str(self.amp_id), "0", "1"
+            )
 
-        logger.debug(self.command_socket.name.upper())
-        # logger.debug(f"Stop\n{amp.parse_status_message(repr(stop_response))}")
-        # logger.debug(f"SetPower\n{amp.parse_status_message(repr(set_power_off_response))}")
-        # logger.debug(f"SetPower\n{amp.parse_status_message(repr(set_power_on_response))}")
-        logger.debug(
-            f"SetFilterAndDecimate\n{amp.parse_status_message(repr(set_filter_and_decimate_response))}"
-        )
-        logger.debug(
-            f"SetDecimatedRate\n{amp.parse_status_message(repr(set_sample_rate_response))}"
-        )
-        logger.debug(f"{mode}\n{amp.parse_status_message(repr(set_mode_response))}")
-        logger.debug(f"Start\n{amp.parse_status_message(repr(start_response))}")
-        logger.info("Amplifier initialized\n\n")
+            # Set sample rate
+            fs = str(self.sample_rate)
+            _ = self.send_cmd(
+                "cmd_SetDecimatedRate", str(self.amp_id), "0", fs
+            )
 
-        self._get_amplifier_details()
+            """ set to default acquisition or default signal generation mode, depending on config (note: this should almost surely come before
+            the start call...) """
+            if self.mode == "test":
+                _ = self.send_cmd(
+                    "cmd_DefaultSignalGeneration", str(self.amp_id), "0", "0"
+                )
+                amp_mode = "DefaultSignalGeneration"
+
+            # Start data stream
+            _ = self.send_cmd("cmd_Start", str(self.amp_id), "0", "0")
+
+            logger.info("Amplifier initialized in mode {amp_mode}\n\n")
+
+            self._get_amplifier_details()
+
+        except:
+            logger.error(
+                f"Error encountered in init_amplifier: {traceback.format_exc()}"
+            )
+            self.set_error_encountered()
+
 
     def recvfrom(self, socket, bufsize, verbose=0, parse_data=True):
         chunk = None
