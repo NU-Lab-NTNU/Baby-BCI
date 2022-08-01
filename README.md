@@ -43,7 +43,15 @@ What this project is not:
     powershell
     Get-Content log/debug.log -Wait
     ```
- 
+Software versions:
+  - Python installation required.
+  - Required python packages outlined in requirements.txt
+  - Tested with E-Prime 2.0, Net Station v5.4 and v4.5.
+  
+System layout:
+
+[![](https://mermaid.ink/img/pako:eNqNkt1qAjEQhV9lyLVe9KK13UJBV_EB7N2uSExmNZifJZkUxPXdm_2pilIwV8Oc78wcwpyYcBJZxnae13v4npcW0lsWuKm9MriG8firCaRM1DFA7TGgJU7K2QZmxT4abte9Z15wU2tVKfS9C3EHkhNvYNFKAf1Pknp40RHC2Urtou_mhQaG7XknXiwgjEwzhmSdRl5xDcpWroG8sHGzFWp9a77unhZC8xD6XLfLr0jet2d37SHNtI-qK3CR6kgXPn8QlqXtJa3sYUVHjfACgbw7YOZRjoTTzrfV5z32-hz29hw2eQ57_8O2OuLAteUD-PE_yEbMoDdcyXREp9ZYMtqjwZJlqZRY8aipZKU9JzTW6WtxIRU5z7KK64AjxiO51dEKlpFP4wdorni6STNQ518jQOT1)](https://mermaid.live/edit#pako:eNqNkt1qAjEQhV9lyLVe9KK13UJBV_EB7N2uSExmNZifJZkUxPXdm_2pilIwV8Oc78wcwpyYcBJZxnae13v4npcW0lsWuKm9MriG8firCaRM1DFA7TGgJU7K2QZmxT4abte9Z15wU2tVKfS9C3EHkhNvYNFKAf1Pknp40RHC2Urtou_mhQaG7XknXiwgjEwzhmSdRl5xDcpWroG8sHGzFWp9a77unhZC8xD6XLfLr0jet2d37SHNtI-qK3CR6kgXPn8QlqXtJa3sYUVHjfACgbw7YOZRjoTTzrfV5z32-hz29hw2eQ57_8O2OuLAteUD-PE_yEbMoDdcyXREp9ZYMtqjwZJlqZRY8aipZKU9JzTW6WtxIRU5z7KK64AjxiO51dEKlpFP4wdorni6STNQ518jQOT1)
+
 Timeline:
   - Future plans:
     * v1.0.0 Command line interface
