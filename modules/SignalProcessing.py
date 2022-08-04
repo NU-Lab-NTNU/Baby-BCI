@@ -114,6 +114,7 @@ class SignalProcessing(SubModule):
         try:
             logger.debug("Entering startup")
             self.load_models()
+            self.validate_models()
 
         except:
             logger.error(
@@ -138,6 +139,11 @@ class SignalProcessing(SubModule):
         self.transformer = pickle.load(self.transformer_fname)
         self.clf = pickle.load(self.classifier_fname)
         self.reg = pickle.load(self.regressor_fname)
+
+    def validate_models(self):
+        assert(self.eeg.shape == self.transformer.input_shape)
+        assert(self.transformer.output_shape == self.clf.input_shape)
+        assert(self.transformer.output_shape == self.reg.input_shape)
 
     def process(self):
         start_t = time.perf_counter()
