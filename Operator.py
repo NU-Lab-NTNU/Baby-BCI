@@ -48,13 +48,23 @@ class Operator:
         self.sigproc = SignalProcessing(
             int(config["Global"]["n_channels"]),
             int(config["Global"]["sample_rate"]),
-            int(config["SignalProcessing"]["time_per_trial"]),
-            int(config["SignalProcessing"]["time_start"]),
-            int(config["SignalProcessing"]["time_stop"]),
-            config["SignalProcessing"]["preprocessing_fname"],
+            config["SignalProcessing"]["transformer_fname"],
             config["SignalProcessing"]["classifier_fname"],
             config["SignalProcessing"]["regressor_fname"],
             config["SignalProcessing"]["experiment_fname"],
+            int(config["SignalProcessing"]["time_per_trial"]),
+            int(config["SignalProcessing"]["time_start"]),
+            int(config["SignalProcessing"]["time_stop"]),
+            float(config["SignalProcessing"]["f0"]),
+            float(config["SignalProcessing"]["Q"]),
+            float(config["SignalProcessing"]["fl"]),
+            float(config["SignalProcessing"]["fh"]),
+            int(config["SignalProcessing"]["filter_order"]),
+            int(config["SignalProcessing"]["z_t"]),
+            float(config["SignalProcessing"]["v_t_h"]),
+            float(config["SignalProcessing"]["v_t_l"]),
+            int(config["SignalProcessing"]["padlen"]),
+
         )
 
     """
@@ -67,7 +77,7 @@ class Operator:
         """
         self.error = False
         self.finished = False
-        
+
         self.eprimeserver.error_encountered.clear()
         self.ampclient.error_encountered.clear()
         self.sigproc.error_encountered.clear()
@@ -129,11 +139,11 @@ class Operator:
                 if self.get_trial_eeg():
                     if self.mode == "test":
                         self.set_signal_type()
-    
+
                     success = self.wait_for_processing()
                     if success:
                         self.send_return_msg_eprime()
-                        
+
             self.check_submodules()
 
         logger.info("exiting control_loop")
@@ -158,7 +168,7 @@ class Operator:
 
         elif self.error:
             logger.error("error flag is raised, can't enter control_loop")
-        
+
         elif self.finished:
             logger.warning("finished flag is raised, can't enter control_loop")
 

@@ -7,6 +7,8 @@ import modules.helpers.util as util
 import traceback
 from modules.SubModule import SubModule
 from modules.helpers.util import get_logger
+from offline.preprocessing import preprocess
+import pickle
 
 logger = get_logger(__name__)
 
@@ -29,13 +31,22 @@ class SignalProcessing(SubModule):
         self,
         _n_channels,
         _sample_rate,
-        _time_per_trial,
-        _time_start,
-        _time_stop,
-        _preprocessing_fname,
+        _transformer_fname,
         _classifier_fname,
         _regressor_fname,
         _experiment_fname,
+        _time_per_trial,
+        _time_start,
+        _time_stop,
+        _f0,
+        _Q,
+        _fl,
+        _fh,
+        _filter_order,
+        _z_t,
+        _v_t_h,
+        _v_t_l,
+        _padlen,
     ) -> None:
         # Init parent class
         super().__init__()
@@ -54,10 +65,26 @@ class SignalProcessing(SubModule):
         self.delay = 0
 
         # Filenames
-        self.preprocessing_fname = _preprocessing_fname
+        self.transformer_fname = _transformer_fname
         self.classifier_fname = _classifier_fname
         self.regressor_fname = _regressor_fname
         self.experiment_fname = _experiment_fname
+
+        # Preprocessing config
+        self.f0 = _f0
+        self.Q = _Q
+        self.fl = _fl
+        self.fh = _fh
+        self.filter_order = _filter_order
+        self.z_t = _z_t
+        self.v_t_h = _v_t_h
+        self.v_t_l = _v_t_l
+        self.padlen = _padlen
+
+        # Modules
+        self.transformer = None
+        self.clf = None
+        self.reg = None
 
         # Events
         self.trial_data_ready = threading.Event()
@@ -65,7 +92,7 @@ class SignalProcessing(SubModule):
 
         # Results
         self.y_prob = []
-        self.y = []
+        self.y_pred = []
         self.t = []
         self.discard = []
 
@@ -84,12 +111,9 @@ class SignalProcessing(SubModule):
             logger.info(f"created data folder: {self.folder_path}")
 
     def startup(self):
-        """
-        In the future this should load models for preprocessing/feature extraction, classification and regression
-        """
         try:
             logger.debug("Entering startup")
-            time.sleep(0.5)
+            self.load_models()
 
         except:
             logger.error(
@@ -110,42 +134,50 @@ class SignalProcessing(SubModule):
         logger.info("stop_flag was set whilst waiting for data.")
         return False
 
+    def load_models(self):
+        self.transformer = pickle.load(self.transformer_fname)
+        self.clf = pickle.load(self.classifier_fname)
+        self.reg = pickle.load(self.regressor_fname)
+
     def process(self):
+        start_t = time.perf_counter()
         discard = 0
         y_prob = 0
-        y = 0
+        y_pred = 0
         t = 0
-        eeg = None
-
-        # Placeholder for processing
-        time.sleep(0.5)
+        eeg = self.eeg
 
         # Acount for delay
         if self.delay > self.time_per_trial - self.time_start:
             discard = 1
-            logger.warning(
+            logger.error(
                 "too large delay, trial discarded. Increase time_per_trial or speed up the system somehow."
             )
         else:
-            start = int(self.time_per_trial - self.time_start - self.delay)
-            stop = int(self.time_per_trial - self.time_stop - self.delay)
+            start = int((self.time_per_trial - self.time_start - self.delay) * self.sample_rate / 1000)
+            stop = int((self.time_per_trial - self.time_stop - self.delay) * self.sample_rate / 1000)
             eeg = self.eeg[:, start:stop]
+
 
         if not discard and eeg is not None:
             # Preprocessing
-            discard = 1 if np.random.randint(0, 20) < 1 else 0
+            x, trial_good, bad_ch = preprocess(eeg, self.fs, self.f0, self.Q, self.fl, self.fh, self.filter_order, self.z_t, self.v_t_h, self.v_t_l, self.padlen)
+            discard = not trial_good
+
+            # Transform
+            x_feat = self.transformer.transform(x)
 
             # Classification
-            y_prob = np.random.randint(0, 101) / 100.0
-            y = 1 if y_prob >= 0.5 else 0
+            y_pred, y_prob = self.clf.predict(x_feat)
 
             # Regression
-            t = -np.random.randint(400, 1000)
+            t = self.reg.predict(x_feat)
 
         self.y_prob.append(y_prob)
-        self.y.append(y)
+        self.y_pred.append(y_pred)
         self.t.append(t)
         self.discard.append(discard)
+        logger.info(f"process took {np.round(time.perf_counter() - start_t, 2)} seconds")
 
     def create_feedback_msg(self):
         self.feedback_msg = f"y = {self.y[-1]}, y_prob = {round(self.y_prob[-1], 2)}, t = {self.t[-1]}, discard = {self.discard[-1]}"
