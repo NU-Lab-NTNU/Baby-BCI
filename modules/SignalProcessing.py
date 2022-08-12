@@ -54,10 +54,12 @@ class SignalProcessing(SubModule):
         # eeg data array
         self.n_channels = _n_channels
         self.sample_rate = _sample_rate
-        self.time_per_trial = _time_per_trial
+        self.time_per_trial_fetched = _time_per_trial
         self.time_start = _time_start
         self.time_stop = _time_stop
-
+        self.time_per_trial = -(self.time_stop - self.time_start)
+        
+        self.n_samples_fetch = round(self.time_per_trial_fetched * self.sample_rate / 1000.0)
         self.n_samples = round(self.time_per_trial * self.sample_rate / 1000.0)
         self.eeg = np.zeros((self.n_channels, self.n_samples))
 
@@ -71,6 +73,7 @@ class SignalProcessing(SubModule):
         self.experiment_fname = _experiment_fname
 
         # Preprocessing config
+        self.fs = self.sample_rate
         self.f0 = _f0
         self.Q = _Q
         self.fl = _fl
@@ -136,9 +139,14 @@ class SignalProcessing(SubModule):
         return False
 
     def load_models(self):
-        self.transformer = pickle.load(self.transformer_fname)
-        self.clf = pickle.load(self.classifier_fname)
-        self.reg = pickle.load(self.regressor_fname)
+        with open(self.transformer_fname, "rb") as f:
+            self.transformer = pickle.load(f)
+            
+        with open(self.classifier_fname, "rb") as f:
+            self.clf = pickle.load(f)
+            
+        with open(self.regressor_fname, "rb") as f:
+            self.reg = pickle.load(f)
 
     def validate_models(self):
         assert(self.eeg.shape == self.transformer.input_shape)
@@ -148,20 +156,20 @@ class SignalProcessing(SubModule):
     def process(self):
         start_t = time.perf_counter()
         discard = 0
-        y_prob = 0
-        y_pred = 0
-        t = 0
+        y_prob = [0]
+        y_pred = [0]
+        t = [0]
         eeg = self.eeg
 
         # Acount for delay
-        if self.delay > self.time_per_trial - self.time_start:
+        if self.delay > self.time_per_trial_fetched - self.time_start:
             discard = 1
             logger.error(
                 "too large delay, trial discarded. Increase time_per_trial or speed up the system somehow."
             )
         else:
-            start = int((self.time_per_trial - self.time_start - self.delay) * self.sample_rate / 1000)
-            stop = int((self.time_per_trial - self.time_stop - self.delay) * self.sample_rate / 1000)
+            start = int((self.time_per_trial_fetched - self.time_start - self.delay) * self.sample_rate / 1000)
+            stop = int((self.time_per_trial_fetched - self.time_stop - self.delay) * self.sample_rate / 1000)
             eeg = self.eeg[:, start:stop]
 
 
@@ -170,33 +178,46 @@ class SignalProcessing(SubModule):
             x, trial_good, bad_ch = preprocess(eeg, self.fs, self.f0, self.Q, self.fl, self.fh, self.filter_order, self.z_t, self.v_t_h, self.v_t_l, self.padlen)
             discard = not trial_good
 
-            # Transform
-            x_feat = self.transformer.transform(x)
+            # Check enough good channels
+            enough_good_channels = self.transformer.check_enough_good_ch(bad_ch)
 
-            # Classification
-            y_pred, y_prob = self.clf.predict(x_feat)
+            if enough_good_channels:
+                # Transform
+                x_feat = self.transformer.transform(x, bad_ch)
 
-            # Regression
-            t = self.reg.predict(x_feat)
+                # Classification
+                y_pred, y_prob = self.clf.predict(x_feat)
 
-        self.y_prob.append(y_prob)
-        self.y_pred.append(y_pred)
-        self.t.append(t)
+                # Regression
+                t = self.reg.predict(x_feat)
+
+            else:
+                ch_numbers = np.array([i+1 for i in range(self.n_channels)])
+                bad_ch_numeric = ch_numbers[bad_ch]
+                bad_ch_str = ""
+                for i in range(bad_ch_numeric.shape[0]):
+                    bad_ch_str = bad_ch_str + f"E{str(bad_ch_numeric[i])}, "
+                    
+                logger.error(f"not enough good channels in trial, bad channels: {bad_ch_str}")
+
+        self.y_prob.append(y_prob[0])
+        self.y_pred.append(y_pred[0])
+        self.t.append(t[0])
         self.discard.append(discard)
         logger.info(f"process took {np.round(time.perf_counter() - start_t, 2)} seconds")
 
     def create_feedback_msg(self):
-        self.feedback_msg = f"y = {self.y[-1]}, y_prob = {round(self.y_prob[-1], 2)}, t = {self.t[-1]}, discard = {self.discard[-1]}"
+        self.feedback_msg = f"y = {self.y_pred[-1]}, y_prob = {np.round(self.y_prob[-1], 2)}, t = {self.t[-1]}, discard = {self.discard[-1]}"
         logger.debug("setting trial_processed")
         self.trial_processed.set()
 
     def dump_data(self):
-        trial_number = len(self.y)
+        trial_number = len(self.y_pred)
         path = self.folder_path + f"/trial{trial_number}.npy"
         np.save(path, self.eeg)
 
         path2 = self.folder_path + f"/trial{trial_number}results.npy"
-        results = np.array([self.y[-1], self.y_prob[-1], self.t[-1], self.discard[-1]])
+        results = np.array([self.y_pred[-1], self.y_prob[-1], self.t[-1], self.discard[-1]])
         np.save(path2, results)
 
     def main_loop(self):

@@ -107,9 +107,9 @@ class EprimeServer(SubModule):
         ready = False
         while not (self.stop_flag or ready):
             ready = self.msg_ready_for_eprime.wait(5)
-        
+
         success = not self.stop_flag
-        return success        
+        return success
 
     def send_msg(self, str_msg):
         byte_msg = str_msg.encode("utf-8")
@@ -168,10 +168,10 @@ class EprimeServer(SubModule):
                         success = self.wait_for_feedback_msg()
                         if success:
                             self.send_msg(self.msg_for_eprime)
-    
+
                             logger.debug("clearing msg_ready_for_eprime")
                             self.msg_ready_for_eprime.clear()
-                            
+
                         else:
                             pass
 
@@ -223,17 +223,10 @@ class EprimeServer(SubModule):
         logger.info("exiting main_loop")
 
     def close(self):
-        try:
-            exit_msg = "E 0"
-            self.send_msg(exit_msg)
 
-        except:
-            logger.error(
-                f"Error encountered when sending exit message: {traceback.format_exc()}"
-            )
-            self.set_error_encountered()
+        if self.conn is not None:
+            self.conn.close()
 
-        self.conn.close()
         self.conn = None
         self.addr = None
 

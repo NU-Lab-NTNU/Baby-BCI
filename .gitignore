@@ -5,3 +5,7 @@ data/*
 modules/__pycache__/*
 modules/helpers/__pycache__/*
 *.log
+*.evt
+*.raw
+*.npy
+offline/__pycache__/*

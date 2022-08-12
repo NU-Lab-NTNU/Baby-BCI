@@ -1,5 +1,9 @@
 from Operator import Operator
 
+from offline.Transformer import TransformerKMeans
+from offline.Classifier import Classifier
+from offline.Regressor import Regressor
+
 from modules.helpers.util import get_logger
 
 logger = get_logger(__name__)

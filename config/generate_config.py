@@ -7,6 +7,8 @@ config_file.add_section("Global")
 config_file.set("Global", "n_channels", "256")
 config_file.set("Global", "sample_rate", "500")
 config_file.set("Global", "mode", "test")
+age = "less"
+config_file.set("Global", "age", age)
 
 config_file.add_section("AmpServer")
 
@@ -29,13 +31,15 @@ config_file.set("E-Prime", "port", "20237")
 
 config_file.add_section("SignalProcessing")
 
-config_file.set("SignalProcessing", "transformer_fname", "offline/data/greaterthan7/models/transformer/transformer_kmeans_dtw.sav")
-config_file.set("SignalProcessing", "classifier_fname", "offline/data/greaterthan7/models/clf/RandomForest.sav")
-config_file.set("SignalProcessing", "regressor_fname", "offline/data/greaterthan7/models/clf/RandomForest.sav")
-config_file.set("SignalProcessing", "experiment_fname", "Test2707")
-config_file.set("SignalProcessing", "time_per_trial", "1000")
-config_file.set("SignalProcessing", "time_start", "950")
-config_file.set("SignalProcessing", "time_stop", "50")
+model_dir = "offline/data/" + age + "than7/models/"
+
+config_file.set("SignalProcessing", "transformer_fname", model_dir + "transformer/TransformerKMeans09-08-22.sav")
+config_file.set("SignalProcessing", "classifier_fname", model_dir + "clf/RandomForest09-08-22.sav")
+config_file.set("SignalProcessing", "regressor_fname", model_dir + "reg/RandomForest09-08-22.sav")
+config_file.set("SignalProcessing", "experiment_fname", "Test1108")
+config_file.set("SignalProcessing", "time_per_trial", "1050")
+config_file.set("SignalProcessing", "time_start", "1000")
+config_file.set("SignalProcessing", "time_stop", "0")
 config_file.set("SignalProcessing", "f0", "50.0")
 config_file.set("SignalProcessing", "Q", "50.0")
 config_file.set("SignalProcessing", "fl", "1.8")
