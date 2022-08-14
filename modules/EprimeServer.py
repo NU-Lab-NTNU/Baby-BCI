@@ -13,7 +13,10 @@ class EprimeServer(SubModule):
     def __init__(self, _socket_address, _port) -> None:
         # Initialize parent class
         super().__init__()
-
+        
+        # Server socket
+        self.s = None
+        
         # Client connection and address
         self.conn = None
         self.addr = None
@@ -30,14 +33,15 @@ class EprimeServer(SubModule):
         self.msg_for_eprime = None
 
         # Timing data
-        self.time_of_trial_finish = 0
+        self.time_of_trial_finish = None
+        self.time_of_last_msg = None
 
         # Trial data
         self.speed = 0
 
-
     def startup(self):
         try:
+            self.stop_flag = False
             logger.debug("Entering startup")
             self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.s.bind((self.socket_address, self.port))
@@ -53,6 +57,16 @@ class EprimeServer(SubModule):
 
                 except socket.timeout:
                     pass
+            
+            logger.info("Finished startup due to:")
+            if self.conn is not None:
+                logger.info(f"Connected to client at address: {self.addr}")
+            
+            if self.task_finished.is_set():
+                logger.info("Task finished")
+            
+            if self.stop_flag:
+                logger.info("Stop flag is set")
 
         except:
             logger.error(
@@ -98,6 +112,7 @@ class EprimeServer(SubModule):
         except socket.timeout:
             pass
 
+        self.time_of_last_msg = time.perf_counter()
         self.s.settimeout(None)
         msg_type, msg_value = self._parse_msg(msg)
 
@@ -159,7 +174,7 @@ class EprimeServer(SubModule):
                         Looming stimulus ended (collision).
                         -> Wait for operator to provide return message.
                         """
-                        self.time_of_trial_finish = time.perf_counter()
+                        self.time_of_trial_finish = self.time_of_last_msg
 
                         logger.debug("setting trial_finished")
                         self.trial_finished.set()
@@ -229,6 +244,11 @@ class EprimeServer(SubModule):
 
         self.conn = None
         self.addr = None
+        
+        if self.s is not None:
+            self.s.close()
+        
+        self.s = None
 
 
 if __name__ == "__main__":

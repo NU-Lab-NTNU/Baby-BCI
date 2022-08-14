@@ -22,7 +22,6 @@ class RingBuffer:
                 "ringbuffer: Trying to read more samples than buffer capacity"
             )
         read_to = self.write_index
-        read_time = time.perf_counter()
         diff = n_read - read_to
         x = np.zeros((n_read, self.n_channels))
         if diff > 0:
@@ -44,7 +43,7 @@ class RingBuffer:
 
         assert x.shape[0] == n_read
         assert x.shape[1] == self.n_channels
-        return x.T, read_time
+        return x.T
 
     def write_sample(self, s):
         self.buf[self.write_index] = s

@@ -2,6 +2,7 @@ import time
 import numpy as np
 import logging
 import traceback
+import threading
 
 from modules.helpers.EEGBuffer import RingBuffer
 import modules.helpers.ampserververhelpers as amp
@@ -24,6 +25,7 @@ class AmpServerClient(SubModule):
         _data_port,
         _amp_id,
         _amp_model,
+        _time_per_trial,
     ) -> None:
         # Initialize parent class
         super().__init__()
@@ -49,8 +51,21 @@ class AmpServerClient(SubModule):
             self.scaling_factor = 0.00009313225
 
         # EEG ringbuffer
-        self.n_samples = self.sample_rate * _ringbuffer_time_capacity
-        self.ringbuf = RingBuffer(self.n_samples, self.n_channels)
+        self.n_samples_ringbuf = round(_ringbuffer_time_capacity * self.sample_rate / 1000.0)
+        self.n_samples_out = round(_time_per_trial * self.sample_rate / 1000.0)
+        logger.info(f"n_samples_ringbuf: {self.n_samples_ringbuf}, n_samples_out: {self.n_samples_out}")
+        self.ringbuf = RingBuffer(self.n_samples_ringbuf, self.n_channels)
+        self.eeg_trial = np.zeros((self.n_channels, self.n_samples_out))
+
+        # Flags
+        self.read_flag = False
+
+        # Events
+        self.trial_copied = threading.Event()
+
+        # Timing
+        self.time_of_last_sample = None
+        self.time_of_trial_finish = None
 
         # Stream_info
         self.first_packet_received = False
@@ -86,6 +101,7 @@ class AmpServerClient(SubModule):
 
     def startup(self):
         try:
+            self.stop_flag = False
             self.command_socket = amp.AmpServerSocket(
                 address=self.amp_addr, port=self.command_port, name="CommandSocket"
             )
@@ -170,6 +186,41 @@ class AmpServerClient(SubModule):
             )
             self.set_error_encountered()
 
+    def uninit_amplifier(self):
+        logger.info("Uninitializing amplifier...")
+
+        """ Because it is possible that the amplifier was not properly disconnected from,
+        disconnect and shut down before starting. This will ensure that the
+        packetCounter is reset. """
+
+        try:
+            # Turn off Filter and Decimation routines
+            #_ = self.send_cmd(
+            #    "cmd_SetFilterAndDecimate", str(self.amp_id), "0", "0"
+            #)
+
+            # Stop listening to amp
+            self.send_data_cmd("cmd_StopListeningToAmp", str(self.amp_id), "0", "0")
+            #_ = self.send_cmd("cmd_Stop", str(self.amp_id), "0", "0")
+
+            # Shut off and on amplifier
+            #_ = self.send_cmd("cmd_SetPower", str(self.amp_id), "0", "0")
+            #_ = self.send_cmd("cmd_SetPower", str(self.amp_id), "0", "1")
+            
+            _ = self.send_cmd(
+                "cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0"
+            )
+            
+            # Start data stream
+            #_ = self.send_cmd("cmd_Start", str(self.amp_id), "0", "0")
+            
+            logger.info("Amplifier uninitialized\n\n")
+
+        except:
+            logger.error(
+                f"Error encountered in uninit_amplifier: {traceback.format_exc()}"
+            )
+            self.set_error_encountered()
 
     def recvfrom(self, socket, bufsize, verbose=0, parse_data=True):
         chunk = None
@@ -247,6 +298,10 @@ class AmpServerClient(SubModule):
                 # Check sample_rate
                 header_buf = None
                 while header_buf is None:
+                    if self.read_flag:
+                        self.copy_trial()
+                        self.clear_read_flag()
+
                     header_buf = self.recvfrom("data", self.data_header.size)
 
                 self.data_header.read_var(header_buf)
@@ -261,6 +316,10 @@ class AmpServerClient(SubModule):
                     )
 
                 for _ in range(n_samples):
+                    if self.read_flag:
+                        self.copy_trial()
+                        self.clear_read_flag()
+
                     # read packet
                     packet_buf = None
                     while packet_buf is None:
@@ -279,7 +338,8 @@ class AmpServerClient(SubModule):
 
                     # push eeg_data to ring_buffer
                     if not self.is_duplicate(counter):
-                        self.ringbuf.write_sample(sample)
+                        self.ringbuf.write_sample(sample[:self.n_channels])
+                        self.time_of_last_sample = time.perf_counter()
                         unique_counter = unique_counter + 1
 
                         if unique_counter % 1000 == 0:
@@ -307,13 +367,6 @@ class AmpServerClient(SubModule):
         self.close()
         self.stop_flag = False
 
-    def get_samples(self, n):
-        """
-        Get last n samples in ringbuf, scale to get microvolts
-        """
-        x, read_time = self.ringbuf.get_samples(n)
-        return x * self.scaling_factor, read_time
-
     def start_listening(self):
         self.send_data_cmd("cmd_ListenToAmp", str(self.amp_id), "0", "0")
 
@@ -321,8 +374,33 @@ class AmpServerClient(SubModule):
         self.send_data_cmd("cmd_StopListeningToAmp", str(self.amp_id), "0", "0")
         _ = self.send_cmd("cmd_Stop", str(self.amp_id), "0", "0")
 
+
+    def copy_trial(self):
+        delay = self.time_of_last_sample - self.time_of_trial_finish
+        delay_samples = max(int(np.round(delay * self.sample_rate)), 0)
+
+        n_request = self.eeg_trial.shape[1]+delay_samples
+        logger.info(f"request {n_request} samples")
+        
+        tmp = self.ringbuf.get_samples(n_request)
+        
+        n_received = tmp.shape[1]
+        logger.info(f"received {n_received} samples")
+        
+        if delay_samples > 0:
+            self.eeg_trial = tmp[:,:-delay_samples]
+        else:
+            self.eeg_trial = tmp
+        self.trial_copied.set()
+
+    def set_read_flag(self):
+        self.read_flag = True
+
+    def clear_read_flag(self):
+        self.read_flag = False
+
     def close(self):
-        self.stop_amp()
+        self.uninit_amplifier()
 
         self.command_socket.close()
         self.notification_socket.close()

@@ -24,7 +24,6 @@ class NetCode(enum.Enum):
     NoNet = 15  # net not connected
     Unknown = 255  # Unknown or net not connected
 
-
 class PacketFormat1:
     def __init__(self) -> None:
         # Total 1152 bytes
@@ -90,7 +89,6 @@ class PacketFormat1:
 
         return net_code, n_channels
 
-
 class AmpDataPacketHeader:
     def __init__(self) -> None:
         # Total 16 bytes
@@ -107,7 +105,6 @@ class AmpDataPacketHeader:
     def read_var(self, buf):
         self.read_amp_id(buf[0:8])
         self.read_length(buf[8:])
-
 
 def parse_status_message(msg, start_indent=-1):
     """
@@ -151,7 +148,6 @@ def parse_status_message(msg, start_indent=-1):
 
     return ret_msg + "\n"
 
-
 class AmpServerSocket:
     def __init__(self, address, port, name) -> None:
         self.name = name
@@ -192,5 +188,4 @@ class AmpServerSocket:
         self.s.settimeout(None)
 
     def close(self):
-        self.s.shutdown(socket.SHUT_WR)
         self.s.close()

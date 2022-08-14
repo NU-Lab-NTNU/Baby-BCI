@@ -2,7 +2,6 @@ from modules.AmpServerClient import AmpServerClient
 from modules.EprimeServer import EprimeServer
 from modules.SignalProcessing import SignalProcessing
 from modules.helpers.util import read_config, get_logger
-import modules.helpers.ampserververhelpers as amp
 
 from threading import Thread
 import traceback
@@ -44,6 +43,7 @@ class Operator:
             int(config["AmpServer"]["data_port"]),
             int(config["AmpServer"]["amp_id"]),
             config["AmpServer"]["amp_model"],
+            int(config["SignalProcessing"]["time_per_trial"]),
         )
         self.sigproc = SignalProcessing(
             int(config["Global"]["n_channels"]),
@@ -53,8 +53,6 @@ class Operator:
             config["SignalProcessing"]["regressor_fname"],
             config["SignalProcessing"]["experiment_fname"],
             int(config["SignalProcessing"]["time_per_trial"]),
-            int(config["SignalProcessing"]["time_start"]),
-            int(config["SignalProcessing"]["time_stop"]),
             float(config["SignalProcessing"]["f0"]),
             float(config["SignalProcessing"]["Q"]),
             float(config["SignalProcessing"]["fl"]),
@@ -134,13 +132,13 @@ class Operator:
         """
 
         while not (self.error or self.finished):
-            success = self.wait_for_trial()
+            success = self.wait_for_event(self.eprimeserver.trial_finished, "trial_finished")
             if success:
                 if self.get_trial_eeg():
                     if self.mode == "test":
                         self.set_signal_type()
 
-                    success = self.wait_for_processing()
+                    success = self.wait_for_event(self.sigproc.trial_processed, "trial_processed")
                     if success:
                         self.send_return_msg_eprime()
 
@@ -172,6 +170,21 @@ class Operator:
         elif self.finished:
             logger.warning("finished flag is raised, can't enter control_loop")
 
+    def wait_for_event(self, event, event_str):
+        logger.debug(f"waiting for {event_str}")
+        flag = False
+        finished_or_error = False
+        while not (flag or finished_or_error):
+            flag = event.wait(1)
+            finished_or_error = self.check_submodules()
+
+        if not finished_or_error:
+            logger.debug(f"clearing {event_str}")
+            event.clear()
+            return True
+
+        return False
+
     """
         E-prime stuff
     """
@@ -199,28 +212,34 @@ class Operator:
     """
         AmpClient stuff
     """
-
     def get_trial_eeg(self):
-        try:
-            self.sigproc.eeg, self.time_of_data_fetched = self.ampclient.get_samples(
-                self.sigproc.n_samples_fetch
-            )
-            self.sigproc.delay = (
-                self.time_of_data_fetched - self.eprimeserver.time_of_trial_finish
-            ) * 1000
-            logger.info(
-                f"delay E-prime to AmpServer client: {round(self.sigproc.delay, 2)} milliseconds"
-            )
+        self.ampclient.time_of_trial_finish = self.eprimeserver.time_of_trial_finish
+        self.ampclient.set_read_flag()
+        success = self.wait_for_event(self.ampclient.trial_copied, "trial_copied")
+        if success:
+            logger.info(f"eeg_trial.shape: {self.ampclient.eeg_trial.shape}")
+            self.sigproc.eeg = self.ampclient.eeg_trial
             logger.debug("setting trial_data_ready")
             self.sigproc.trial_data_ready.set()
             return True
 
-        except:
-            logger.error(
-                f"Error encountered in get_trial_eeg: {traceback.format_exc()}"
-            )
-            self.error = True
+        else:
             return False
+
+    def wait_for_trial_data(self):
+        logger.debug("waiting for trial_finished")
+        flag = False
+        finished_or_error = False
+        while not (flag or finished_or_error):
+            flag = self.eprimeserver.trial_finished.wait(1)
+            finished_or_error = self.check_submodules()
+
+        if not finished_or_error:
+            logger.debug("clearing trial_finished")
+            self.eprimeserver.trial_finished.clear()
+            return True
+
+        return False
 
     def set_signal_type(self):
         try:
