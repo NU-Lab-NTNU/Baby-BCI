@@ -302,14 +302,14 @@ def plot_channels_fft(
         plt.legend()
 
 if __name__ == "__main__":
-    ch = [65 + i for i in range(20)]
+    ch = [60 + i for i in range(20)]
     #ch = [111]
     padlen = 1500
     f0 = 50
     Q = 50.0
     fs = 500.0
     filter_order = 2
-    fl = 1.8
+    fl = 1.6
     fh = 25.0
     N_ch = 128
     ch_numbers = np.linspace(0, N_ch-1, N_ch)
@@ -334,9 +334,9 @@ if __name__ == "__main__":
             speed_str = "4s"
 
 
-        x_proc, trial_good, _, z = preprocess(x_j, fs, f0, Q, fl, fh, filter_order, 19, 120, 0.01, padlen)
+        x_proc, trial_good, _ = preprocess(x_j, fs, f0, Q, fl, fh, filter_order, 19, 120, 0.01, padlen)
 
-        z_t = np.absolute(np.sum(z, axis=0) / np.sqrt(z.shape[0]))
+        """ z_t = np.absolute(np.sum(z, axis=0) / np.sqrt(z.shape[0]))
         z_t_plt = z_t[50:-50]
         n_samples = z_t.shape[0]
         t = np.linspace(0, (n_samples - 1) / fs, n_samples) * 1000
@@ -345,12 +345,12 @@ if __name__ == "__main__":
         plt.plot(t_plt, z_t_plt)
         plt.title(f"Trial {trialnum} z score")
         plt.xlabel("Time [ms]")
-        plt.ylabel("z score")
+        plt.ylabel("z score") """
 
         """ plot_channels(x_j, ch, title=f"{exp_name} Trial {trialnum}")
         plot_channels_fft(x_j, ch, title=f"{exp_name} FFT Trial {trialnum}") """
 
-        plot_channels(x_proc, ch, voffset=10, title=f"Trial {trialnum}, speed={speed_str}", y_true=y_true, y_pred=y_pred, t_true=t_true, t_pred=t_pred, trial_good=trial_good)
+        plot_channels(x_proc, ch, voffset=20, title=f"Trial {trialnum}, speed={speed_str}", y_true=y_true, y_pred=y_pred, t_true=t_true, t_pred=t_pred, trial_good=trial_good)
         #plot_channels_fft(x_proc, ch, title=f"{exp_name} FFT Trial {trialnum} preprocessed")
 
         plt.show()

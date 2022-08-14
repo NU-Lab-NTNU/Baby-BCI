@@ -9,3 +9,5 @@ modules/helpers/__pycache__/*
 *.raw
 *.npy
 offline/__pycache__/*
+*.fst
+*.ftg
