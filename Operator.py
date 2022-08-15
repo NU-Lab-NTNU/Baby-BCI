@@ -8,6 +8,7 @@ import traceback
 
 logger = get_logger(__name__)
 
+
 class Operator:
     def __init__(self) -> None:
         # Read config file
@@ -62,7 +63,6 @@ class Operator:
             float(config["SignalProcessing"]["v_t_h"]),
             float(config["SignalProcessing"]["v_t_l"]),
             int(config["SignalProcessing"]["padlen"]),
-
         )
 
     """
@@ -71,7 +71,7 @@ class Operator:
 
     def startup(self):
         """
-            Startup of modules
+        Startup of modules
         """
         self.error = False
         self.finished = False
@@ -128,17 +128,21 @@ class Operator:
 
     def main_loop(self):
         """
-            Main loop, this is what happens during experiment.
+        Main loop, this is what happens during experiment.
         """
 
         while not (self.error or self.finished):
-            success = self.wait_for_event(self.eprimeserver.trial_finished, "trial_finished")
+            success = self.wait_for_event(
+                self.eprimeserver.trial_finished, "trial_finished"
+            )
             if success:
                 if self.get_trial_eeg():
                     if self.mode == "test":
                         self.set_signal_type()
 
-                    success = self.wait_for_event(self.sigproc.trial_processed, "trial_processed")
+                    success = self.wait_for_event(
+                        self.sigproc.trial_processed, "trial_processed"
+                    )
                     if success:
                         self.send_return_msg_eprime()
 
@@ -189,21 +193,6 @@ class Operator:
         E-prime stuff
     """
 
-    def wait_for_trial(self):
-        logger.debug("waiting for trial_finished")
-        flag = False
-        finished_or_error = False
-        while not (flag or finished_or_error):
-            flag = self.eprimeserver.trial_finished.wait(1)
-            finished_or_error = self.check_submodules()
-
-        if not finished_or_error:
-            logger.debug("clearing trial_finished")
-            self.eprimeserver.trial_finished.clear()
-            return True
-
-        return False
-
     def send_return_msg_eprime(self):
         self.eprimeserver.msg_for_eprime = self.sigproc.feedback_msg
         logger.debug("setting msg_ready_for_eprime")
@@ -212,12 +201,13 @@ class Operator:
     """
         AmpClient stuff
     """
+
     def get_trial_eeg(self):
         self.ampclient.time_of_trial_finish = self.eprimeserver.time_of_trial_finish
         self.ampclient.set_read_flag()
         success = self.wait_for_event(self.ampclient.trial_copied, "trial_copied")
         if success:
-            logger.info(f"eeg_trial.shape: {self.ampclient.eeg_trial.shape}")
+            logger.debug(f"eeg_trial.shape: {self.ampclient.eeg_trial.shape}")
             self.sigproc.eeg = self.ampclient.eeg_trial
             logger.debug("setting trial_data_ready")
             self.sigproc.trial_data_ready.set()
@@ -225,21 +215,6 @@ class Operator:
 
         else:
             return False
-
-    def wait_for_trial_data(self):
-        logger.debug("waiting for trial_finished")
-        flag = False
-        finished_or_error = False
-        while not (flag or finished_or_error):
-            flag = self.eprimeserver.trial_finished.wait(1)
-            finished_or_error = self.check_submodules()
-
-        if not finished_or_error:
-            logger.debug("clearing trial_finished")
-            self.eprimeserver.trial_finished.clear()
-            return True
-
-        return False
 
     def set_signal_type(self):
         try:
@@ -271,21 +246,6 @@ class Operator:
     """
         SignalProcessing stuff
     """
-
-    def wait_for_processing(self):
-        logger.debug("waiting for trial_processed")
-        flag = False
-        finished_or_error = False
-        while not (flag or finished_or_error):
-            flag = self.sigproc.trial_processed.wait(1)
-            finished_or_error = self.check_submodules()
-
-        if not finished_or_error:
-            logger.debug("clearing trial_processed")
-            self.sigproc.trial_processed.clear()
-            return True
-
-        return False
 
     """
         Supervise stuff

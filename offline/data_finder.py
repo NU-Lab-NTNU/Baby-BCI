@@ -3,30 +3,32 @@ import numpy as np
 import os
 from util import save_xyidst
 from tqdm import tqdm
+
 if __name__ == "__main__":
     import warnings
     import matplotlib.pyplot as plt
 
     warnings.filterwarnings("error")
 
+
 def get_timestamps_evt(fname, sfreq, event="Oz"):
-    """ get timestamps as sample number from .evt file """
+    """get timestamps as sample number from .evt file"""
     """
         only used by copy_data
     """
-    inputfile = open(fname, 'r')
+    inputfile = open(fname, "r")
     timestamps = []
 
     for index, line in enumerate(inputfile):
         if index == 0:
             continue
         if event.lower() in line.lower():
-            chunks = line.split(' ')
+            chunks = line.split(" ")
             try:
                 tmu = int(chunks[0])
             except ValueError:
                 continue
-            t = int(tmu*sfreq/1e6)
+            t = int(tmu * sfreq / 1e6)
 
             timestamps.append(t)
 
@@ -35,15 +37,16 @@ def get_timestamps_evt(fname, sfreq, event="Oz"):
 
     return np.asarray(timestamps)
 
+
 def get_timestamps_raw(fname, event="stm-"):
-    """ get timestamps as sample number from .raw file, returned as numpy array"""
+    """get timestamps as sample number from .raw file, returned as numpy array"""
     """
         only used by copy_data
     """
     triggers = ["stm+"]
 
     try:
-        egi = mne.io.read_raw_egi(fname, exclude=triggers, verbose='WARNING')
+        egi = mne.io.read_raw_egi(fname, exclude=triggers, verbose="WARNING")
     except:
         return None, 0
 
@@ -58,11 +61,12 @@ def get_timestamps_raw(fname, event="stm-"):
     sfreq = egi.info["sfreq"]
     return coll_sample, sfreq
 
+
 def read_raw_file(fname, time_before_coll):
     triggers = ["stm+"]
     event = "stm-"
     try:
-        egi = mne.io.read_raw_egi(fname + ".raw", exclude=triggers, verbose='WARNING')
+        egi = mne.io.read_raw_egi(fname + ".raw", exclude=triggers, verbose="WARNING")
 
     except:
         return False, None, None, None, None, 1
@@ -76,15 +80,15 @@ def read_raw_file(fname, time_before_coll):
     for i, ch_name in enumerate(egi.ch_names):
         ch_names_idx[ch_name] = i
 
-
     coll_events = egi.get_data(picks=[ch_names_idx[event]])[0].astype(int)
 
     N_samples = coll_events.shape[0]
-    sample_num = np.linspace(0, N_samples-1, N_samples)
+    sample_num = np.linspace(0, N_samples - 1, N_samples)
     coll_ts = (sample_num[coll_events == 1]).astype(int)
     start_ts = (coll_ts - int(time_before_coll * sfreq)).astype(int)
 
     return True, egi, coll_ts, start_ts, sfreq, 0
+
 
 def read_raw_data(egi, stop_ts, start_ts):
     N_ch = 128
@@ -106,9 +110,10 @@ def read_raw_data(egi, stop_ts, start_ts):
     egi.close()
     return True, x, 0
 
+
 def read_evt_file(fname, sfreq, time_before_coll):
     coll_ts = []
-    evt = open(fname + ".evt", 'r')
+    evt = open(fname + ".evt", "r")
     evt_lines = evt.readlines()
     for line in evt_lines:
         if "stm-" in line.lower():
@@ -148,8 +153,16 @@ def read_evt_file(fname, sfreq, time_before_coll):
     pz_mask = pz_ts != 0
 
     # Number of samples before collision
-    oz_ts = np.round((oz_ts - np.where(oz_mask, coll_ts, np.zeros(coll_ts.shape)).astype(np.float64)) * sfreq * 1e-6)
-    pz_ts = np.round((pz_ts  - np.where(pz_mask, coll_ts, np.zeros(coll_ts.shape)).astype(np.float64)) * sfreq * 1e-6)
+    oz_ts = np.round(
+        (oz_ts - np.where(oz_mask, coll_ts, np.zeros(coll_ts.shape)).astype(np.float64))
+        * sfreq
+        * 1e-6
+    )
+    pz_ts = np.round(
+        (pz_ts - np.where(pz_mask, coll_ts, np.zeros(coll_ts.shape)).astype(np.float64))
+        * sfreq
+        * 1e-6
+    )
 
     # Outside extracted interval
     oz_outside = np.absolute(oz_ts) > time_before_coll * sfreq
@@ -179,14 +192,21 @@ def read_evt_file(fname, sfreq, time_before_coll):
 
     return True, erp, erp_ts, speed, 0
 
+
 def extract_trials(fname):
     time_before_coll = 1
-    raw_success, egi, raw_coll_ts, raw_start_ts, sfreq, error_code = read_raw_file(fname, time_before_coll)
+    raw_success, egi, raw_coll_ts, raw_start_ts, sfreq, error_code = read_raw_file(
+        fname, time_before_coll
+    )
     if raw_success:
-        evt_success, erp, erp_ts, speed, error_code = read_evt_file(fname, sfreq, time_before_coll)
+        evt_success, erp, erp_ts, speed, error_code = read_evt_file(
+            fname, sfreq, time_before_coll
+        )
         if evt_success:
             if raw_coll_ts.shape == erp.shape:
-                data_success, eeg, error_code = read_raw_data(egi, raw_coll_ts, raw_start_ts)
+                data_success, eeg, error_code = read_raw_data(
+                    egi, raw_coll_ts, raw_start_ts
+                )
                 if data_success:
                     return True, eeg, erp, erp_ts, speed, 0
 
@@ -199,6 +219,7 @@ def extract_trials(fname):
     else:
         return False, None, None, None, None, error_code
 
+
 def main(source_folder, target_folder):
 
     x = None
@@ -208,22 +229,26 @@ def main(source_folder, target_folder):
     ids = None
 
     error_codes = []
-    error_codes_dict = {0: "Success",
-                        1: "read_raw_egi failed",
-                        2: "wrong sample rate",
-                        3: "mismatch in evt_coll_ts and raw_coll_ts",
-                        4: "start_t < 0 in read_raw_data",
-                        5: "No oz or pz peak in trial",
-                        6: "RuntimeWarning encountered when calculating erp_ts"}
+    error_codes_dict = {
+        0: "Success",
+        1: "read_raw_egi failed",
+        2: "wrong sample rate",
+        3: "mismatch in evt_coll_ts and raw_coll_ts",
+        4: "start_t < 0 in read_raw_data",
+        5: "No oz or pz peak in trial",
+        6: "RuntimeWarning encountered when calculating erp_ts",
+    }
 
     id_counter = 0
     counter = 0
     for f in tqdm(os.listdir(source_folder), desc="File pairs"):
-        if not os.path.isfile(source_folder+f):
+        if not os.path.isfile(source_folder + f):
             continue
 
         fname, _ = os.path.splitext(f)
-        success, x_tmp, y_tmp, erp_t_tmp, speed_tmp, error_code = extract_trials(source_folder + fname)
+        success, x_tmp, y_tmp, erp_t_tmp, speed_tmp, error_code = extract_trials(
+            source_folder + fname
+        )
         error_codes.append(error_code)
 
         if success:

@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
+
 def plot_scatter(x1, x2, y, title):
     plt.figure()
     pos_mask = y == True
@@ -13,16 +14,14 @@ def plot_scatter(x1, x2, y, title):
     plt.legend()
 
 
-
 if __name__ == "__main__":
     path = "data/greaterthan7/dataset/train/"
-    x = np.load(path+"x.npy")
-    y = np.load(path+"y.npy")
+    x = np.load(path + "x.npy")
+    y = np.load(path + "y.npy")
 
     tsne = TSNE(verbose=1)
     x_embed = tsne.fit_transform(x)
 
-    plot_scatter(x_embed[:,0], x_embed[:,1], y, "TSNE visualization")
+    plot_scatter(x_embed[:, 0], x_embed[:, 1], y, "TSNE visualization")
 
     plt.show()
-

@@ -52,8 +52,8 @@ class SubModule:
 
     def startup(self):
         """
-            Connect sockets, load models etc.
-            Should be modified in child class.
+        Connect sockets, load models etc.
+        Should be modified in child class.
         """
         pass
 

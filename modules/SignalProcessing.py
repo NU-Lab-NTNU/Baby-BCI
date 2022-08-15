@@ -115,9 +115,7 @@ class SignalProcessing(SubModule):
             self.validate_models()
 
         except:
-            logger.error(
-                f"Error encountered in startup: {traceback.format_exc()}"
-            )
+            logger.error(f"Error encountered in startup: {traceback.format_exc()}")
             self.set_error_encountered()
 
     def wait_for_data(self):
@@ -144,9 +142,9 @@ class SignalProcessing(SubModule):
             self.reg = pickle.load(f)
 
     def validate_models(self):
-        assert(self.eeg.shape == self.transformer.input_shape)
-        assert(self.transformer.output_shape == self.clf.input_shape)
-        assert(self.transformer.output_shape == self.reg.input_shape)
+        assert self.eeg.shape == self.transformer.input_shape
+        assert self.transformer.output_shape == self.clf.input_shape
+        assert self.transformer.output_shape == self.reg.input_shape
 
     def process(self):
         start_t = time.perf_counter()
@@ -157,10 +155,22 @@ class SignalProcessing(SubModule):
         eeg = self.eeg
 
         if eeg is not None:
-            logger.info(f"eeg shape: {eeg.shape}")
-            
+            logger.debug(f"eeg shape: {eeg.shape}")
+
             # Preprocessing
-            x, trial_good, bad_ch = preprocess(eeg, self.fs, self.f0, self.Q, self.fl, self.fh, self.filter_order, self.z_t, self.v_t_h, self.v_t_l, self.padlen)
+            x, trial_good, bad_ch = preprocess(
+                eeg,
+                self.fs,
+                self.f0,
+                self.Q,
+                self.fl,
+                self.fh,
+                self.filter_order,
+                self.z_t,
+                self.v_t_h,
+                self.v_t_l,
+                self.padlen,
+            )
             discard = not trial_good
 
             # Check enough good channels
@@ -177,19 +187,23 @@ class SignalProcessing(SubModule):
                 t = self.reg.predict(x_feat)
 
             else:
-                ch_numbers = np.array([i+1 for i in range(self.n_channels)])
+                ch_numbers = np.array([i + 1 for i in range(self.n_channels)])
                 bad_ch_numeric = ch_numbers[bad_ch]
                 bad_ch_str = ""
                 for i in range(bad_ch_numeric.shape[0]):
                     bad_ch_str = bad_ch_str + f"E{str(bad_ch_numeric[i])}, "
 
-                logger.error(f"not enough good channels in trial, bad channels: {bad_ch_str}")
+                logger.error(
+                    f"not enough good channels in trial, bad channels: {bad_ch_str}"
+                )
 
         self.y_prob.append(y_prob[0])
         self.y_pred.append(y_pred[0])
         self.t.append(t[0])
         self.discard.append(discard)
-        logger.info(f"process took {np.round(time.perf_counter() - start_t, 2)} seconds")
+        logger.info(
+            f"process took {np.round(time.perf_counter() - start_t, 2)} seconds"
+        )
 
     def create_feedback_msg(self):
         self.feedback_msg = f"y = {self.y_pred[-1]}, y_prob = {np.round(self.y_prob[-1], 2)}, t = {self.t[-1]}, discard = {self.discard[-1]}"
@@ -202,7 +216,9 @@ class SignalProcessing(SubModule):
         np.save(path, self.eeg)
 
         path2 = self.folder_path + f"/trial{trial_number}results.npy"
-        results = np.array([self.y_pred[-1], self.y_prob[-1], self.t[-1], self.discard[-1]])
+        results = np.array(
+            [self.y_pred[-1], self.y_prob[-1], self.t[-1], self.discard[-1]]
+        )
         np.save(path2, results)
 
     def main_loop(self):
@@ -215,29 +231,9 @@ class SignalProcessing(SubModule):
 
                     self.dump_data()
         except:
-            logger.error(
-                f"Error encountered in main_loop: {traceback.format_exc()}"
-            )
+            logger.error(f"Error encountered in main_loop: {traceback.format_exc()}")
             self.set_error_encountered()
 
         logger.info("exiting main_loop.")
         self.close()
         self.stop_flag = False
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logger.debug)
-    config = util.read_config("config.ini")
-
-    sigproc = SignalProcessing(
-        int(config["Global"]["n_channels"]),
-        int(config["Global"]["sample_rate"]),
-        int(config["SignalProcessing"]["time_per_trial"]),
-        config["SignalProcessing"]["preprocessing_fname"],
-        config["SignalProcessing"]["classifier_fname"],
-        config["SignalProcessing"]["regressor_fname"],
-    )
-
-    sigproc.startup()
-
-    sigproc.main_loop()

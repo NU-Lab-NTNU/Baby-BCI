@@ -12,12 +12,13 @@ error_codes = {
     3: "Not valid due to wrong sampling frequency",
     4: "Automatically approved due to same filename",
     5: "Not valid due to timing differences",
-    6: "Validated by comparing timing"
+    6: "Validated by comparing timing",
 }
 
+
 def validate_files(raw_f, raw_e, raw_dict, parent_folder):
-    raw_file = parent_folder + raw_f + '.raw'
-    evt_file = parent_folder + raw_e + '.evt'
+    raw_file = parent_folder + raw_f + ".raw"
+    evt_file = parent_folder + raw_e + ".evt"
     raw_t, sfreq = None, 0
     if raw_f in raw_dict.keys():
         raw_t, sfreq = raw_dict[raw_f]
@@ -31,19 +32,18 @@ def validate_files(raw_f, raw_e, raw_dict, parent_folder):
 
     evt_t = get_timestamps_evt(evt_file, sfreq, event="stm-")
     if evt_t is None:
-        #print("Couldn't read stm- events from event file")
+        # print("Couldn't read stm- events from event file")
         return False, raw_dict
 
     oz_t = get_timestamps_evt(evt_file, sfreq, event="Oz")
     if oz_t is None:
-        #print("Not valid due to no Oz comments")
+        # print("Not valid due to no Oz comments")
         return False, raw_dict
 
     if sfreq > 500.1 or sfreq < 499.9:
-        #print("Not valid due to sampling frequency: ", sfreq)
+        # print("Not valid due to sampling frequency: ", sfreq)
         if sfreq < 249.9 or sfreq > 250.1:
             return False, raw_dict
-
 
     timing_good = False
     raw_l = raw_t.shape[0]
@@ -69,15 +69,14 @@ def copy_files(parent_folder, destination_folder):
     for d in os.listdir(parent_folder):
         tmp_raw = []
         tmp_evt = []
-        if not os.path.isdir(parent_folder+d) or "preterm" in d.lower():
+        if not os.path.isdir(parent_folder + d) or "preterm" in d.lower():
             continue
         for f in os.listdir(parent_folder + d):
             file_name, file_ext = os.path.splitext(f)
-            if file_ext == '.raw':
-                tmp_raw.append(d+'/'+file_name)
-            if file_ext == '.evt':
-                tmp_evt.append(d+'/'+file_name)
-
+            if file_ext == ".raw":
+                tmp_raw.append(d + "/" + file_name)
+            if file_ext == ".evt":
+                tmp_evt.append(d + "/" + file_name)
 
         hope = True
         l_raw = len(tmp_raw)
@@ -97,7 +96,9 @@ def copy_files(parent_folder, destination_folder):
                 file_added = False
                 for i in range(l_raw):
                     for j in range(l_evt):
-                        b, raw_dict = validate_files(tmp_raw[i], tmp_evt[j], raw_dict, parent_folder)
+                        b, raw_dict = validate_files(
+                            tmp_raw[i], tmp_evt[j], raw_dict, parent_folder
+                        )
                         if b:
                             raw.append(tmp_raw.pop(i))
                             evt.append(tmp_evt.pop(j))
@@ -111,16 +112,16 @@ def copy_files(parent_folder, destination_folder):
                 if not file_added:
                     hope = False
 
-
-
-
     print("\nStarting copying of ", len(raw), " files")
     for i, r in enumerate(raw):
-        rs = r.split('/')
-        shutil.copyfile(parent_folder+r+'.raw', destination_folder+rs[1]+'.raw')
-        shutil.copyfile(parent_folder+evt[i]+'.evt', destination_folder+rs[1]+'.evt')
+        rs = r.split("/")
+        shutil.copyfile(parent_folder + r + ".raw", destination_folder + rs[1] + ".raw")
+        shutil.copyfile(
+            parent_folder + evt[i] + ".evt", destination_folder + rs[1] + ".evt"
+        )
 
     print("Successfully copied ", len(raw), " files")
+
 
 if __name__ == "__main__":
     print("young")
@@ -133,7 +134,7 @@ if __name__ == "__main__":
             continue
 
         for d2 in os.listdir(root1):
-            root2 = root1 + '/' + d2 + '/'
+            root2 = root1 + "/" + d2 + "/"
             if not "younger than" in d2.lower() or not os.path.isdir(root2):
                 continue
 

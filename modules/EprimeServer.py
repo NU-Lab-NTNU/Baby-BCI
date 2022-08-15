@@ -9,14 +9,15 @@ from modules.helpers.util import get_logger
 
 logger = get_logger(__name__)
 
+
 class EprimeServer(SubModule):
     def __init__(self, _socket_address, _port) -> None:
         # Initialize parent class
         super().__init__()
-        
+
         # Server socket
         self.s = None
-        
+
         # Client connection and address
         self.conn = None
         self.addr = None
@@ -57,21 +58,19 @@ class EprimeServer(SubModule):
 
                 except socket.timeout:
                     pass
-            
+
             logger.info("Finished startup due to:")
             if self.conn is not None:
                 logger.info(f"Connected to client at address: {self.addr}")
-            
+
             if self.task_finished.is_set():
                 logger.info("Task finished")
-            
+
             if self.stop_flag:
                 logger.info("Stop flag is set")
 
         except:
-            logger.error(
-                f"Error encountered in startup: {traceback.format_exc()}"
-            )
+            logger.error(f"Error encountered in startup: {traceback.format_exc()}")
             self.set_error_encountered()
 
     def _parse_msg(self, byte_msg):
@@ -152,9 +151,7 @@ class EprimeServer(SubModule):
                         Experiment finished.
                         -> Signal to operator that we are done
                         """
-                        logger.info(
-                            "experiment finished, closing tcp connection..."
-                        )
+                        logger.info("experiment finished, closing tcp connection...")
                         self.close()
                         self.set_finished()
                         break
@@ -191,9 +188,7 @@ class EprimeServer(SubModule):
                             pass
 
         except:
-            logger.error(
-                f"Error encountered in main_loop: {traceback.format_exc()}"
-            )
+            logger.error(f"Error encountered in main_loop: {traceback.format_exc()}")
             self.set_error_encountered()
 
         logger.info("exiting main_loop.")
@@ -244,22 +239,8 @@ class EprimeServer(SubModule):
 
         self.conn = None
         self.addr = None
-        
+
         if self.s is not None:
             self.s.close()
-        
+
         self.s = None
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logger.debug)
-    config = util.read_config("config.ini")
-
-    eprimeserver = EprimeServer(
-        config["E-Prime"]["socket_address"],
-        int(config["E-Prime"]["port"]),
-    )
-
-    eprimeserver.startup()
-
-    eprimeserver.main_loop_test()

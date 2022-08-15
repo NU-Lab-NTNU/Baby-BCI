@@ -51,9 +51,17 @@ class AmpServerClient(SubModule):
             self.scaling_factor = 0.00009313225
 
         # EEG ringbuffer
-        self.n_samples_ringbuf = round(_ringbuffer_time_capacity * self.sample_rate / 1000.0)
-        self.n_samples_out = round(_time_per_trial * self.sample_rate / 1000.0)
-        logger.info(f"n_samples_ringbuf: {self.n_samples_ringbuf}, n_samples_out: {self.n_samples_out}")
+        self.n_samples_ringbuf = round(
+            _ringbuffer_time_capacity * self.sample_rate / 1000.0
+        )
+        self.n_samples_out = round(
+            _time_per_trial * self.sample_rate / 1000.0
+        )
+
+        logger.debug(
+            f"n_samples_ringbuf: {self.n_samples_ringbuf}, n_samples_out: {self.n_samples_out}"
+        )
+
         self.ringbuf = RingBuffer(self.n_samples_ringbuf, self.n_channels)
         self.eeg_trial = np.zeros((self.n_channels, self.n_samples_out))
 
@@ -128,10 +136,14 @@ class AmpServerClient(SubModule):
         pretty_response = amp.parse_status_message(repr(response))
         error = "status error" in pretty_response
         if error:
-            logger.critical(f"Command: {command} to {self.command_socket.name} returned status error. Check connection and command syntax")
+            logger.critical(
+                f"Command: {command} to {self.command_socket.name} returned status error. Check connection and command syntax"
+            )
             raise ConnectionError
         else:
-            logger.debug(f"Command: {command} to {self.command_socket.name} returned status complete.")
+            logger.debug(
+                f"Command: {command} to {self.command_socket.name} returned status complete."
+            )
         return pretty_response
 
     def send_data_cmd(self, command, ampId, channel, value):
@@ -144,29 +156,18 @@ class AmpServerClient(SubModule):
     def init_amplifier(self):
         logger.info("Initializing amplifier...")
 
-        """ Because it is possible that the amplifier was not properly disconnected from,
-        disconnect and shut down before starting. This will ensure that the
-        packetCounter is reset. """
-
         try:
-            _ = self.send_cmd(
-                "cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0"
-            )
+            _ = self.send_cmd("cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0")
             amp_mode = "DefaultAcquisitionState"
 
             # Turn on Filter and Decimation routines
-            _ = self.send_cmd(
-                "cmd_SetFilterAndDecimate", str(self.amp_id), "0", "1"
-            )
+            _ = self.send_cmd("cmd_SetFilterAndDecimate", str(self.amp_id), "0", "1")
 
             # Set sample rate
             fs = str(self.sample_rate)
-            _ = self.send_cmd(
-                "cmd_SetDecimatedRate", str(self.amp_id), "0", fs
-            )
+            _ = self.send_cmd("cmd_SetDecimatedRate", str(self.amp_id), "0", fs)
 
-            """ set to default acquisition or default signal generation mode, depending on config (note: this should almost surely come before
-            the start call...) """
+            # Set to default acquisition or default signal generation mode, depending on config
             if self.mode == "test":
                 _ = self.send_cmd(
                     "cmd_DefaultSignalGeneration", str(self.amp_id), "0", "0"
@@ -189,31 +190,13 @@ class AmpServerClient(SubModule):
     def uninit_amplifier(self):
         logger.info("Uninitializing amplifier...")
 
-        """ Because it is possible that the amplifier was not properly disconnected from,
-        disconnect and shut down before starting. This will ensure that the
-        packetCounter is reset. """
-
         try:
-            # Turn off Filter and Decimation routines
-            #_ = self.send_cmd(
-            #    "cmd_SetFilterAndDecimate", str(self.amp_id), "0", "0"
-            #)
-
             # Stop listening to amp
             self.send_data_cmd("cmd_StopListeningToAmp", str(self.amp_id), "0", "0")
-            #_ = self.send_cmd("cmd_Stop", str(self.amp_id), "0", "0")
 
-            # Shut off and on amplifier
-            #_ = self.send_cmd("cmd_SetPower", str(self.amp_id), "0", "0")
-            #_ = self.send_cmd("cmd_SetPower", str(self.amp_id), "0", "1")
-            
-            _ = self.send_cmd(
-                "cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0"
-            )
-            
-            # Start data stream
-            #_ = self.send_cmd("cmd_Start", str(self.amp_id), "0", "0")
-            
+            # Set to default acquisition state
+            _ = self.send_cmd("cmd_DefaultAcquisitionState", str(self.amp_id), "0", "0")
+
             logger.info("Amplifier uninitialized\n\n")
 
         except:
@@ -338,7 +321,7 @@ class AmpServerClient(SubModule):
 
                     # push eeg_data to ring_buffer
                     if not self.is_duplicate(counter):
-                        self.ringbuf.write_sample(sample[:self.n_channels])
+                        self.ringbuf.write_sample(sample[: self.n_channels])
                         self.time_of_last_sample = time.perf_counter()
                         unique_counter = unique_counter + 1
 
@@ -370,25 +353,20 @@ class AmpServerClient(SubModule):
     def start_listening(self):
         self.send_data_cmd("cmd_ListenToAmp", str(self.amp_id), "0", "0")
 
-    def stop_amp(self):
-        self.send_data_cmd("cmd_StopListeningToAmp", str(self.amp_id), "0", "0")
-        _ = self.send_cmd("cmd_Stop", str(self.amp_id), "0", "0")
-
-
     def copy_trial(self):
         delay = self.time_of_last_sample - self.time_of_trial_finish
         delay_samples = max(int(np.round(delay * self.sample_rate)), 0)
 
-        n_request = self.eeg_trial.shape[1]+delay_samples
-        logger.info(f"request {n_request} samples")
-        
+        n_request = self.eeg_trial.shape[1] + delay_samples
+        logger.debug(f"request {n_request} samples")
+
         tmp = self.ringbuf.get_samples(n_request)
-        
+
         n_received = tmp.shape[1]
-        logger.info(f"received {n_received} samples")
-        
+        logger.debug(f"received {n_received} samples")
+
         if delay_samples > 0:
-            self.eeg_trial = tmp[:,:-delay_samples]
+            self.eeg_trial = tmp[:, :-delay_samples]
         else:
             self.eeg_trial = tmp
         self.trial_copied.set()
@@ -405,27 +383,3 @@ class AmpServerClient(SubModule):
         self.command_socket.close()
         self.notification_socket.close()
         self.data_socket.close()
-
-if __name__ == "__main__":
-    # logging.basicConfig(filename='ampserverclient.log', filemode='w', level=logger.debug)
-    logging.basicConfig(level=logger.debug)
-    amp_client = AmpServerClient()
-
-    amp_client.startup()
-
-    amp_client.main_loop()
-
-    eeg_arr = np.zeros((amp_client.n_channels, amp_client.n_samples))
-
-    for i in range(amp_client.n_channels):
-        for j in range(amp_client.n_samples):
-            idx = j * amp_client.n_channels + i
-            eeg_arr[i, j] = amp_client.ringbuf[idx]
-
-    np.save("data3s.npy", eeg_arr)
-
-    while 1:
-        _ = amp_client.recvfrom("notification", 1024, 2)
-        _ = amp_client.recvfrom("command", 1024, 2)
-        _ = amp_client.recvfrom("data", 4096, 1, False)
-        time.sleep(0.01)

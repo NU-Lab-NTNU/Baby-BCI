@@ -17,7 +17,6 @@ class CommandLineInterface:
         x = input("Ready for startup? [y/n/q]")
         if x == "y":
             self.operator.startup()
-            self.operator.control_loop()
 
         return x
 
@@ -30,13 +29,19 @@ class CommandLineInterface:
 
         return x
 
+    def setup_and_run(self):
+        x = input("Ready to start experiment? [y/n/q]")
+        if x == "y":
+            self.operator.startup()
+            self.operator.control_loop()
+
+        return x
+
     def mainloop(self):
 
         proceed = True
         while proceed == True:
-            x = self.setup()
-            #if not self.operator.error and x == "y":
-                #x = self.do_experiment()
+            x = self.setup_and_run()
 
             proceed = x != "q"
 

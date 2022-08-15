@@ -7,6 +7,7 @@ from modules.helpers.util import get_logger
 
 logger = get_logger(__name__)
 
+
 class RingBuffer:
     def __init__(self, _n_samples, _n_channels) -> None:
         self.n_channels = _n_channels

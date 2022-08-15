@@ -33,9 +33,21 @@ config_file.add_section("SignalProcessing")
 
 model_dir = "offline/data/" + age + "than7/models/"
 
-config_file.set("SignalProcessing", "transformer_fname", model_dir + "transformer/TransformerKMeans12-08-22.sav")
-config_file.set("SignalProcessing", "classifier_fname", model_dir + "clf/RandomForest12-08-22.sav")
-config_file.set("SignalProcessing", "regressor_fname", model_dir + "reg/RandomForest12-08-22.sav")
+config_file.set(
+    "SignalProcessing",
+    "transformer_fname",
+    model_dir + "transformer/TransformerKMeans12-08-22.sav",
+)
+config_file.set(
+    "SignalProcessing",
+    "classifier_fname",
+    model_dir + "clf/RandomForest12-08-22.sav",
+)
+config_file.set(
+    "SignalProcessing",
+    "regressor_fname",
+    model_dir + "reg/RandomForest12-08-22.sav",
+)
 config_file.set("SignalProcessing", "experiment_fname", "Test1408")
 config_file.set("SignalProcessing", "time_per_trial", "1000")
 config_file.set("SignalProcessing", "f0", "50.0")
@@ -47,8 +59,6 @@ config_file.set("SignalProcessing", "z_t", "19")
 config_file.set("SignalProcessing", "v_t_h", "200.0")
 config_file.set("SignalProcessing", "v_t_l", "0.01")
 config_file.set("SignalProcessing", "padlen", "1500")
-
-
 
 
 with open(r"config.ini", "w") as configfileObj:

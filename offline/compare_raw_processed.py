@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from Transformer import get_magnitude_phase, get_theta_band
 
-x_proc = np.load("data/greaterthan7/preprocessed/x.npy")*1e6
+x_proc = np.load("data/greaterthan7/preprocessed/x.npy") * 1e6
 print(f"x_proc shape: {x_proc.shape}")
 
 y_proc = np.load("data/greaterthan7/preprocessed/y.npy")
@@ -11,11 +11,11 @@ bad_chs = np.load("data/greaterthan7/preprocessed/bad_ch.npy")
 
 N = 10
 M = 5
-ch = 66-1
-ch_bad = bad_chs[:,ch]
+ch = 66 - 1
+ch_bad = bad_chs[:, ch]
 
-x_pos = x_proc[np.logical_and(y_proc==1, np.logical_not(ch_bad))]
-x_neg = x_proc[np.logical_and(y_proc==0, np.logical_not(ch_bad))]
+x_pos = x_proc[np.logical_and(y_proc == 1, np.logical_not(ch_bad))]
+x_neg = x_proc[np.logical_and(y_proc == 0, np.logical_not(ch_bad))]
 print(f"x_pos shape: {x_pos.shape}")
 print(f"x_neg shape: {x_neg.shape}")
 
@@ -55,8 +55,8 @@ pos_env, pos_phase = get_magnitude_phase(x_pos_theta)
 x_neg_theta = get_theta_band(x_neg, 500.0)
 neg_env, neg_phase = get_magnitude_phase(x_neg_theta)
 
-mu_pos_env = np.mean(pos_env[:,ch], axis=0)
-mu_neg_env = np.mean(neg_env[:,ch], axis=0)
+mu_pos_env = np.mean(pos_env[:, ch], axis=0)
+mu_neg_env = np.mean(neg_env[:, ch], axis=0)
 
 """ std_pos_env = np.std(pos_env[:,ch], axis=0)
 std_neg_env = np.std(neg_env[:,ch], axis=0)
@@ -97,12 +97,12 @@ plt.ylabel("Amplitude [muV]")
 plt.show() """
 
 plt.figure()
-mu_pos = np.mean(pos_env[:,ch], axis=1)
-std_pos =  np.std(pos_env[:,ch], axis=1)
+mu_pos = np.mean(pos_env[:, ch], axis=1)
+std_pos = np.std(pos_env[:, ch], axis=1)
 plt.scatter(mu_pos, std_pos / mu_pos, color="blue", label="VEP", s=1)
 
-mu_neg = np.mean(neg_env[:,ch], axis=1)
-std_neg =  np.std(neg_env[:,ch], axis=1)
+mu_neg = np.mean(neg_env[:, ch], axis=1)
+std_neg = np.std(neg_env[:, ch], axis=1)
 plt.scatter(mu_neg, std_neg / mu_neg, color="red", label="noVEP", s=1)
 
 plt.title(f"Envelope channel {ch+1}")
@@ -111,12 +111,12 @@ plt.ylabel("Std/mean magnitude")
 plt.legend()
 
 plt.figure()
-mu_pos = np.mean(pos_phase[:,ch], axis=1)
-std_pos =  np.std(pos_phase[:,ch], axis=1)
+mu_pos = np.mean(pos_phase[:, ch], axis=1)
+std_pos = np.std(pos_phase[:, ch], axis=1)
 plt.scatter(mu_pos, std_pos / mu_pos, color="blue", label="VEP", s=1)
 
-mu_neg = np.mean(neg_phase[:,ch], axis=1)
-std_neg =  np.std(neg_phase[:,ch], axis=1)
+mu_neg = np.mean(neg_phase[:, ch], axis=1)
+std_neg = np.std(neg_phase[:, ch], axis=1)
 plt.scatter(mu_neg, std_neg / mu_neg, color="red", label="noVEP", s=1)
 
 plt.title(f"Phase channel {ch+1}")

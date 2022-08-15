@@ -12,9 +12,8 @@ if __name__ == "__main__":
         transformer = pickle.load(f)
 
     x = np.load(data_path)
-    x_ch = np.swapaxes(x, 0,1)
+    x_ch = np.swapaxes(x, 0, 1)
     x_ch = np.reshape(x, (x_ch.shape[0], -1))
-
 
     mfld = TSNE(n_components=2)
     x_mfld = mfld.fit_transform(x_ch)

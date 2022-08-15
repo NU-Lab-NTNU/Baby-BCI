@@ -3,8 +3,21 @@ import matplotlib.pyplot as plt
 from preprocessing import preprocess
 import numpy as np
 
+
 def plot_channels(
-    x, ch, voffset=0, fs=500.0, show_legend=True, title="A nice plot", ch_prefix="E", y_true=None, y_pred=None, t_true=None, t_pred=None, color=None, trial_good=None
+    x,
+    ch,
+    voffset=0,
+    fs=500.0,
+    show_legend=True,
+    title="A nice plot",
+    ch_prefix="E",
+    y_true=None,
+    y_pred=None,
+    t_true=None,
+    t_pred=None,
+    color=None,
+    trial_good=None,
 ):
     """
     x: eeg data (n_channels, n_samples) numpy array
@@ -28,10 +41,10 @@ def plot_channels(
         title = title + f" y_pred = {y_pred}"
 
     if t_true is not None:
-        plt.axvline(t[-1]+t_true, color="black")
+        plt.axvline(t[-1] + t_true, color="black")
 
     if t_pred is not None:
-        plt.axvline(t[-1]+t_pred, color="red")
+        plt.axvline(t[-1] + t_pred, color="red")
 
     if trial_good is not None:
         title = title + f" good trial = {trial_good}"
@@ -42,6 +55,7 @@ def plot_channels(
 
     if show_legend:
         plt.legend()
+
 
 if __name__ == "__main__":
     fname = "T:/su/ips/Nullab/Analysis/EEG/looming/Silje-Adelen/Jakob KK_220812 alom/jakob_loom_20220812_102837"
@@ -60,7 +74,9 @@ if __name__ == "__main__":
     N_ch = 128
 
     for i in range(eeg.shape[0]):
-        x, trial_good, bad_ch = preprocess(eeg[i]*1e6, fs, f0, Q, fl, fh, filter_order, 19, 120, 0.01, padlen)
+        x, trial_good, bad_ch = preprocess(
+            eeg[i] * 1e6, fs, f0, Q, fl, fh, filter_order, 19, 120, 0.01, padlen
+        )
         speed = speeds[i]
         if speed == 2:
             speed_str = "2s"
@@ -68,6 +84,13 @@ if __name__ == "__main__":
             speed_str = "3s"
         else:
             speed_str = "4s"
-        plot_channels(x, channels, voffset=20, title=f"Trial {i+1}, speed={speed_str}", y_true=erp[i], t_true=erp_ts[i], trial_good=trial_good)
+        plot_channels(
+            x,
+            channels,
+            voffset=20,
+            title=f"Trial {i+1}, speed={speed_str}",
+            y_true=erp[i],
+            t_true=erp_ts[i],
+            trial_good=trial_good,
+        )
         plt.show()
-

@@ -1,7 +1,11 @@
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.svm import SVC
-from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis, LinearDiscriminantAnalysis
+from sklearn.discriminant_analysis import (
+    QuadraticDiscriminantAnalysis,
+    LinearDiscriminantAnalysis,
+)
 import numpy as np
+
 if __name__ == "__main__":
     from util import load_xyidst_threaded
     import ml_util
@@ -36,18 +40,18 @@ class Classifier:
 
     def predict(self, x):
         """
-            x either of shape (n_trials, n_features) or (n_features)
+        x either of shape (n_trials, n_features) or (n_features)
         """
         n_dim = len(x.shape)
         if not (n_dim == 1 or n_dim == 2):
             raise ValueError(f"Error: x {x.shape} has wrong dimensions.")
 
         if n_dim == 1:
-            x = x.reshape((1,-1))
+            x = x.reshape((1, -1))
 
         y_pred = self.clf.predict(x)
         y_prob = self.clf.predict_proba(x)
-        return y_pred, y_prob[:,1]
+        return y_pred, y_prob[:, 1]
 
     def fit(self, x, y):
         self.clf.fit(x, y)
@@ -69,7 +73,7 @@ if __name__ == "__main__":
     clf.fit(x, y)
 
     y_pred, y_prob = clf.predict(x)
-    acc = np.round(np.mean(y_pred == y)*100, 2)
+    acc = np.round(np.mean(y_pred == y) * 100, 2)
     ml_util.plot_ROC(y, y_prob, "Training")
     print(f"Training accuracy: {acc}%")
 
@@ -77,7 +81,7 @@ if __name__ == "__main__":
     x, y, _, _, _, _ = load_xyidst_threaded(source_folder + phase, verbose=False)
 
     y_pred, y_prob = clf.predict(x)
-    acc = np.round(np.mean(y_pred == y)*100, 2)
+    acc = np.round(np.mean(y_pred == y) * 100, 2)
     ml_util.plot_ROC(y, y_prob, "Validation")
     print(f"Validation accuracy: {acc}%")
 
@@ -86,7 +90,7 @@ if __name__ == "__main__":
     if save == "y":
         path = "data/" + age + "than7/models/clf/"
         fname = clf.name + clf.date
-        file_exists = os.path.isfile(path+fname+".sav")
+        file_exists = os.path.isfile(path + fname + ".sav")
         while file_exists:
             print(f"Filename already exists: {fname}")
             overwrite = input("overwrite file (y/n)")
@@ -94,14 +98,12 @@ if __name__ == "__main__":
                 file_exists = False
             else:
                 fname = input("Please enter new filename: ")
-                file_exists = os.path.isfile(path+fname+".sav")
+                file_exists = os.path.isfile(path + fname + ".sav")
 
-        path = path+fname+".sav"
-        with open(path, 'wb') as model_file:
+        path = path + fname + ".sav"
+        with open(path, "wb") as model_file:
             pickle.dump(clf, model_file)
 
         print(f"Model saved to {path}")
 
     plt.show()
-
-
