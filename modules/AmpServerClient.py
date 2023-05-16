@@ -319,6 +319,8 @@ class AmpServerClient(SubModule):
                     else:
                         sample = packet.read_eeg(packet_buf)
 
+                    sample = sample * self.scaling_factor
+
                     # push eeg_data to ring_buffer
                     if not self.is_duplicate(counter):
                         self.ringbuf.write_sample(sample[: self.n_channels])

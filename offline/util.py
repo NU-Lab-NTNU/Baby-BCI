@@ -2,7 +2,6 @@ from threading import Thread
 import numpy as np
 from time import perf_counter
 
-
 def load_xyidst(directory, verbose=False, load_bad_ch=False):
     x = np.load(directory + "x.npy")
     y = np.load(directory + "y.npy")
@@ -26,7 +25,6 @@ def load_xyidst(directory, verbose=False, load_bad_ch=False):
         print("\n")
 
     return x, y, ids, erp_t, speed, bad_ch
-
 
 def load_xyidst_threaded(directory, verbose=False, load_bad_ch=False):
     d = Data()
@@ -64,7 +62,6 @@ def load_xyidst_threaded(directory, verbose=False, load_bad_ch=False):
 
     return x, y, ids, erp_t, speed, bad_ch
 
-
 class Data:
     def __init__(self) -> None:
         self.x = None
@@ -84,7 +81,6 @@ class Data:
         self.speed = np.load(directory + "speed.npy")
         if load_bad_ch:
             self.bad_ch = np.load(directory + "bad_ch.npy")
-
 
 def save_xyidst(x, y, ids, erp_t, speed, folder, bad_ch=None, verbose=False):
     np.save(folder + "x.npy", x)
@@ -106,7 +102,6 @@ def save_xyidst(x, y, ids, erp_t, speed, folder, bad_ch=None, verbose=False):
             print(f"bad_ch shape: {bad_ch.shape}")
 
         print("\n")
-
 
 def save_xyidst_threaded(x, y, ids, erp_t, speed, folder, bad_ch=None, verbose=False):
     tx = Thread(target=np.save, args=[folder + "x.npy", x])
@@ -130,7 +125,6 @@ def save_xyidst_threaded(x, y, ids, erp_t, speed, folder, bad_ch=None, verbose=F
 
         print("\n")
 
-
 def save_yidst(y, ids, erp_t, speed, folder, bad_ch):
     np.save(folder + "y.npy", y)
     np.save(folder + "ids.npy", ids)
@@ -139,28 +133,25 @@ def save_yidst(y, ids, erp_t, speed, folder, bad_ch):
     if bad_ch is not None:
         np.save(folder + "bad_ch.npy", bad_ch)
 
-
 def data_split_load_save(source_folder, target_folder, load_bad_ch, verbose=False):
-    x, y, ids, oz_t, speed, bad_ch = load_xyidst_threaded(
-        source_folder, load_bad_ch=load_bad_ch, verbose=verbose
-    )
+    x, y, ids, oz_t, speed, bad_ch = load_xyidst_threaded(source_folder, load_bad_ch=load_bad_ch, verbose=verbose)
 
     data_split_save(x, y, ids, oz_t, speed, target_folder, bad_ch, verbose)
 
-
-def data_split_save(x, y, ids, oz_t, speed, target_folder, bad_ch=None, verbose=False):
+def data_split_save(x, y, ids, oz_t, speed, target_folder, bad_ch = None, verbose=False):
     id_set = np.asarray(list(set(ids)))
     K = 10
     rng = np.random.default_rng()
     groups = rng.integers(0, K, size=len(id_set))
     zeros = True
-    while zeros:
-        zeros = False
+    while(zeros):
+        zeros=False
         for k in range(K):
-            if np.sum(groups == k) == 0:
+            if np.sum(groups==k) == 0:
                 zeros = True
                 groups = rng.integers(0, K, size=len(id_set))
                 break
+
 
     train_mask = np.zeros(len(ids), dtype=bool)
     id_mask_train = np.logical_and(groups >= 0, groups <= 7)
@@ -194,16 +185,7 @@ def data_split_save(x, y, ids, oz_t, speed, target_folder, bad_ch=None, verbose=
     if bad_ch is not None:
         for i, m in enumerate(masks):
             path = paths[i]
-            save_xyidst(
-                x[m],
-                y[m],
-                ids[m],
-                oz_t[m],
-                speed[m],
-                path,
-                bad_ch=bad_ch[m],
-                verbose=verbose,
-            )
+            save_xyidst(x[m], y[m], ids[m], oz_t[m], speed[m], path, bad_ch=bad_ch[m], verbose=verbose)
 
     else:
         for i, m in enumerate(masks):
@@ -216,7 +198,7 @@ if __name__ == "__main__":
     N = 5
     start_t = perf_counter()
     for i in range(N):
-        x, y, ids, erp_t, speed, _ = load_xyidst(folder)
+        x, y, ids, erp_t, speed, _  = load_xyidst(folder)
 
     end_t = perf_counter()
 
@@ -228,6 +210,7 @@ if __name__ == "__main__":
 
     print(f"{N} iterations of load_xyidst took {end_t - start_t} seconds")
 
+
     start_t = perf_counter()
     for i in range(N):
         x, y, ids, erp_t, speed, _ = load_xyidst_threaded(folder)
@@ -235,6 +218,7 @@ if __name__ == "__main__":
     end_t = perf_counter()
 
     print(f"{N} iterations of load_xyidst_threaded took {end_t - start_t} seconds")
+
 
     folder = "data/greaterthan7/dummy/"
 

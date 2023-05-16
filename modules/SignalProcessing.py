@@ -14,16 +14,21 @@ logger = get_logger(__name__)
 
 """
     Contains the class SignalProcessing (should maybe be renamed).
+    Requires external functions preprocess,
 
-    Last edit: 15th of june 2022
+    Last edit: 16th of february 2023
 
     To do:
-        - Load models
-        - Assert that the models loaded are compatible with config (nchannels x nsamples etc)
         - More comprehensive error handling
 
     Author: Vegard Kjeka Broen (NTNU)
 """
+
+ARTIFACT_REJECTION_CODE = {
+    0: "Good",
+    1: "high z-score",
+    2: "high/low voltage"
+}
 
 
 class SignalProcessing(SubModule):
@@ -31,9 +36,9 @@ class SignalProcessing(SubModule):
         self,
         _n_channels,
         _sample_rate,
-        _transformer_fname,
-        _classifier_fname,
-        _regressor_fname,
+        _transformer_fnames,
+        _classifer_fnames,
+        _regressor_fnames,
         _experiment_fname,
         _time_per_trial,
         _f0,
@@ -59,11 +64,12 @@ class SignalProcessing(SubModule):
 
         # Variable accounting for delay between end of trial and data fetching
         self.delay = 0
+        self.speed_key = "fast"
 
         # Filenames
-        self.transformer_fname = _transformer_fname
-        self.classifier_fname = _classifier_fname
-        self.regressor_fname = _regressor_fname
+        self.transformer_fnames = _transformer_fnames
+        self.classifier_fnames = _classifer_fnames
+        self.regressor_fnames = _regressor_fnames
         self.experiment_fname = _experiment_fname
 
         # Preprocessing config
@@ -79,9 +85,9 @@ class SignalProcessing(SubModule):
         self.padlen = _padlen
 
         # Modules
-        self.transformer = None
-        self.clf = None
-        self.reg = None
+        self.transformers = {"fast": None, "medium": None, "slow": None}
+        self.clfs = {"fast": None, "medium": None, "slow": None}
+        self.regs = {"fast": None, "medium": None, "slow": None}
 
         # Events
         self.trial_data_ready = threading.Event()
@@ -92,6 +98,7 @@ class SignalProcessing(SubModule):
         self.y_pred = []
         self.t = []
         self.discard = []
+        self.speed = []
 
         # Data for operator
         self.feedback_msg = None
@@ -132,19 +139,23 @@ class SignalProcessing(SubModule):
         return False
 
     def load_models(self):
-        with open(self.transformer_fname, "rb") as f:
-            self.transformer = pickle.load(f)
+        for speed_key, transformer_fname in self.transformer_fnames.items():
+            with open(transformer_fname, "rb") as f:
+                self.transformers[speed_key] = pickle.load(f)
 
-        with open(self.classifier_fname, "rb") as f:
-            self.clf = pickle.load(f)
+        for speed_key, classifier_fname in self.classifier_fnames.items():
+            with open(classifier_fname, "rb") as f:
+                self.clfs[speed_key] = pickle.load(f)
 
-        with open(self.regressor_fname, "rb") as f:
-            self.reg = pickle.load(f)
+        for speed_key, regressor_fname in self.regressor_fnames.items():
+            with open(regressor_fname, "rb") as f:
+                self.regs[speed_key] = pickle.load(f)
 
     def validate_models(self):
-        assert self.eeg.shape == self.transformer.input_shape
-        assert self.transformer.output_shape == self.clf.input_shape
-        assert self.transformer.output_shape == self.reg.input_shape
+        for speed_key in self.transformers.keys():
+            assert self.eeg.shape == self.transformers[speed_key].input_shape
+            assert self.transformers[speed_key].output_shape == self.clfs[speed_key].input_shape
+            assert self.transformers[speed_key].output_shape == self.regs[speed_key].input_shape
 
     def process(self):
         start_t = time.perf_counter()
@@ -158,7 +169,7 @@ class SignalProcessing(SubModule):
             logger.debug(f"eeg shape: {eeg.shape}")
 
             # Preprocessing
-            x, trial_good, bad_ch = preprocess(
+            x, trial_good, bad_ch, ar_code, v_high = preprocess(
                 eeg,
                 self.fs,
                 self.f0,
@@ -171,20 +182,33 @@ class SignalProcessing(SubModule):
                 self.v_t_l,
                 self.padlen,
             )
+                
+            logger.info(f"Artifact rejection result: {ARTIFACT_REJECTION_CODE[ar_code]}")
+            logger.info(f"v_high: {np.round(v_high, 2)} microvolts")
             discard = not trial_good
 
+            logger.debug(f"using speed_key {self.speed_key}")
+            transformer = self.transformers[self.speed_key]
+            clf = self.clfs[self.speed_key]
+            reg = self.regs[self.speed_key]
+
             # Check enough good channels
-            enough_good_channels = self.transformer.check_enough_good_ch(bad_ch)
+            enough_good_channels = transformer.check_enough_good_ch(bad_ch)
 
             if enough_good_channels:
-                # Transform
-                x_feat = self.transformer.transform(x, bad_ch)
-
-                # Classification
-                y_pred, y_prob = self.clf.predict(x_feat)
-
-                # Regression
-                t = self.reg.predict(x_feat)
+                try:
+                    # Transform
+                    x_feat = transformer.transform(x, bad_ch)
+    
+                    # Classification
+                    y_pred, y_prob = clf.predict(x_feat)
+    
+                    # Regression
+                    t = reg.predict(x_feat)
+                    
+                except ValueError:
+                    logger.error(f"ValueError encountered during process, discarding trial: {traceback.format_exc()}")
+                    discard = True
 
             else:
                 ch_numbers = np.array([i + 1 for i in range(self.n_channels)])
@@ -201,12 +225,13 @@ class SignalProcessing(SubModule):
         self.y_pred.append(y_pred[0])
         self.t.append(t[0])
         self.discard.append(discard)
+        self.speed.append(self.speed_key)
         logger.info(
             f"process took {np.round(time.perf_counter() - start_t, 2)} seconds"
         )
 
     def create_feedback_msg(self):
-        self.feedback_msg = f"y = {self.y_pred[-1]}, y_prob = {np.round(self.y_prob[-1], 2)}, t = {self.t[-1]}, discard = {self.discard[-1]}"
+        self.feedback_msg = f"y = {self.y_pred[-1]}, y_prob = {np.round(self.y_prob[-1], 2)}, t = {self.t[-1]}, discard = {self.discard[-1]}, speed = {self.speed[-1]}"
         logger.debug("setting trial_processed")
         self.trial_processed.set()
 
@@ -217,7 +242,7 @@ class SignalProcessing(SubModule):
 
         path2 = self.folder_path + f"/trial{trial_number}results.npy"
         results = np.array(
-            [self.y_pred[-1], self.y_prob[-1], self.t[-1], self.discard[-1]]
+            [self.y_pred[-1], self.y_prob[-1], self.t[-1], self.discard[-1], self.speed[-1]]
         )
         np.save(path2, results)
 

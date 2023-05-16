@@ -128,7 +128,7 @@ class EprimeServer(SubModule):
     def send_msg(self, str_msg):
         byte_msg = str_msg.encode("utf-8")
         self.conn.sendto(byte_msg, self.addr)
-        logger.debug(f"Message sent: {str_msg}")
+        logger.info(f"Message sent: {str_msg}")
         return
 
     def main_loop(self):
@@ -143,6 +143,8 @@ class EprimeServer(SubModule):
                         E-Prime says that experiment is starting.
                         -> Send confirmation message
                         """
+                        logger.debug(f"Received message {msg_type} {msg_value}")
+                        logger.info("E-Prime experiment started")
                         self.send_msg("R 1\n")
 
                     elif msg_value == 0:
@@ -151,12 +153,14 @@ class EprimeServer(SubModule):
                         Experiment finished.
                         -> Signal to operator that we are done
                         """
+                        logger.debug(f"Received message {msg_type} {msg_value}")
                         logger.info("experiment finished, closing tcp connection...")
                         self.close()
                         self.set_finished()
                         break
 
                 elif msg_type == "T":
+                    logger.debug(f"Received message {msg_type} {msg_value}")
                     if msg_value in [2, 3, 4]:
                         """
                         msg: T 2/3/4

@@ -4,6 +4,11 @@ data/*
 !review.py
 modules/__pycache__/*
 modules/helpers/__pycache__/*
+offline/data/*
+offline/data_emanuel/*
+offline/data_last_1500ms/*
+offline/data_last_sec/*
+offline/data_pre_it_last_1500ms/*
 *.log
 *.evt
 *.raw

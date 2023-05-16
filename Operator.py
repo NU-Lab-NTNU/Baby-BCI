@@ -8,6 +8,11 @@ import traceback
 
 logger = get_logger(__name__)
 
+SPEED_KEY_DICT = {
+    2: "fast",
+    3: "medium",
+    4: "slow",
+}
 
 class Operator:
     def __init__(self) -> None:
@@ -23,7 +28,8 @@ class Operator:
         self.finished = False
 
         # Test_stuff
-        self.sig_freq = [3, 5, 10, 20, 100]
+        self.sig_freq = [1, 2, 6, 15]
+        self.sig_amp = [1000, 1500]
         self.sig_wave = [0, 1, 2]
         self.sig_wave_name = ["sine wave", "square wave", "triangle wave"]
         self.sig_type_idx = 0
@@ -49,9 +55,21 @@ class Operator:
         self.sigproc = SignalProcessing(
             int(config["Global"]["n_channels"]),
             int(config["Global"]["sample_rate"]),
-            config["SignalProcessing"]["transformer_fname"],
-            config["SignalProcessing"]["classifier_fname"],
-            config["SignalProcessing"]["regressor_fname"],
+            {
+                "fast": config["SignalProcessing"]["transformer_fast"],
+                "medium": config["SignalProcessing"]["transformer_medium"],
+                "slow": config["SignalProcessing"]["transformer_slow"],
+            },
+            {
+                "fast": config["SignalProcessing"]["clf_fast"],
+                "medium": config["SignalProcessing"]["clf_medium"],
+                "slow": config["SignalProcessing"]["clf_slow"],
+            },
+            {
+                "fast": config["SignalProcessing"]["reg_fast"],
+                "medium": config["SignalProcessing"]["reg_medium"],
+                "slow": config["SignalProcessing"]["reg_slow"],
+            },
             config["SignalProcessing"]["experiment_fname"],
             int(config["SignalProcessing"]["time_per_trial"]),
             float(config["SignalProcessing"]["f0"]),
@@ -211,6 +229,7 @@ class Operator:
             self.sigproc.eeg = self.ampclient.eeg_trial
             logger.debug("setting trial_data_ready")
             self.sigproc.trial_data_ready.set()
+            self.sigproc.speed_key = SPEED_KEY_DICT[self.eprimeserver.speed]
             return True
 
         else:
@@ -220,6 +239,7 @@ class Operator:
         try:
             wave_type = str(self.sig_wave[self.sig_type_idx % len(self.sig_wave)])
             wave_freq = str(self.sig_freq[self.sig_type_idx % len(self.sig_freq)])
+            wave_amp = str(self.sig_amp[self.sig_type_idx % len(self.sig_amp)])
 
             _ = self.ampclient.send_cmd(
                 "cmd_SetWaveShape", str(self.ampclient.amp_id), "0", wave_type
@@ -230,9 +250,16 @@ class Operator:
                 "0",
                 wave_freq,
             )
+            
+            _ = self.ampclient.send_cmd(
+                "cmd_SetCalibrationSignalAmplitude",
+                str(self.ampclient.amp_id),
+                "0",
+                wave_amp,
+            )
 
             logger.info(
-                f"signal shape set to {self.sig_wave_name[int(wave_type)]} with freq = {wave_freq} Hz"
+                f"signal shape set to {self.sig_wave_name[int(wave_type)]} with freq = {wave_freq} Hz and amp = {wave_amp}"
             )
 
             self.sig_type_idx = self.sig_type_idx + 1

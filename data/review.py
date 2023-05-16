@@ -2,9 +2,46 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import signal
 from threading import Thread
+import pickle
+import sys
+import os
+
+sys.path.append("../offline")
+
+from preprocessing import preprocess
+
+EXP_NAMES = [
+    "matilda_21022023"
+]
+
+# None for no annotation
+ANNOTATION_PATH = "T:\\su\\ips\\Nullab\\Analysis\\EEG\\looming\\Silje-Adelen\\BCI\\Matilda Aloom BCI 230221\\Matilda_AloomBCI_21022023_20230221_104547_1-export"
+
+SAMPLE_RATE = 500
+
+GENERATE_REPORT = True
+DISPLAY_TRIALS = True
+
+def load_trial(experiment, trial):
+    """
+    Experiment: string
+    Trial: int
+
+    Returns x (n_channels, n_samples)
+    """
+    parent = experiment + "/"
+    fname = f"trial{trial}.npy"
+    x = np.load(parent + fname)
+    meta_fname = f"trial{trial}results.npy"
+    meta = np.load(parent + meta_fname)
+    return x, meta[0], meta[1], meta[2], meta[3]
 
 
-def read_evt_file(fname, sfreq, time_before_coll):
+def parse_evt_file(fname, sfreq):
+
+    if fname is None:
+        return False, None, None, None, 10
+
     coll_ts = []
     evt = open(fname + ".evt", "r")
     evt_lines = evt.readlines()
@@ -28,6 +65,9 @@ def read_evt_file(fname, sfreq, time_before_coll):
             pz_ts[trial] = line.split()[0]
             erp[trial] = True
 
+        elif "revd" in line.lower():
+            speed[trial] = -1
+
         elif "200s" in line.lower():
             speed[trial] = 2
 
@@ -40,6 +80,7 @@ def read_evt_file(fname, sfreq, time_before_coll):
         elif "stm-" in line.lower():
             trial = trial + 1
 
+
     evt.close()
 
     oz_mask = oz_ts != 0
@@ -48,20 +89,14 @@ def read_evt_file(fname, sfreq, time_before_coll):
     # Number of samples before collision
     oz_ts = np.round(
         (oz_ts - np.where(oz_mask, coll_ts, np.zeros(coll_ts.shape)).astype(np.float64))
-        * sfreq * 1e-6
+        * sfreq
+        * 1e-6
     )
     pz_ts = np.round(
         (pz_ts - np.where(pz_mask, coll_ts, np.zeros(coll_ts.shape)).astype(np.float64))
-        * sfreq * 1e-6
+        * sfreq
+        * 1e-6
     )
-
-    # Outside extracted interval
-    oz_outside = np.absolute(oz_ts) > time_before_coll * sfreq
-    pz_outside = np.absolute(pz_ts) > time_before_coll * sfreq
-
-    # Set to negative trials
-    oz_mask[oz_outside] = 0
-    pz_mask[pz_outside] = 0
 
     if not np.any(np.logical_or(pz_mask, oz_mask)):
         return False, None, None, None, 5
@@ -84,116 +119,72 @@ def read_evt_file(fname, sfreq, time_before_coll):
     return True, erp, erp_ts, speed, 0
 
 
-def load_trial(experiment, trial):
-    """
-    Experiment: string
-    Trial: int
+def parse_trial_files(experiment, trials):
+    vep, pvep, tvep, bad = [], [], [], []
+    for trial_num in range(1,trials+1):
+        _, meta_vep, meta_pvep, meta_tvep, meta_bad = load_trial(experiment, trial_num)
+        print(meta_bad)
+        if isinstance(meta_vep, str):
+            meta_vep = True if meta_vep=="True" else False
 
-    Returns x (n_channels, n_samples)
-    """
-    parent = experiment + "/"
-    fname = f"trial{trial}.npy"
-    x = np.load(parent + fname)
-    meta_fname = f"trial{trial}results.npy"
-    meta = np.load(parent + meta_fname)
-    return x, meta[0], meta[1], meta[2], meta[3]
+        if isinstance(meta_pvep, str):
+            meta_pvep = float(meta_pvep)
 
+        if isinstance(meta_tvep, str):
+            meta_tvep = float(meta_tvep)
 
-def hilbert(x_t, fs):
-    """
-    Returns hilbert transform of frequency domain signal
-    inputs:
-        x_t: x in time domain (n_channels, n_samples) or (n_trials, n_channels, n_samples)
-    """
-    n_dim = len(x_t.shape)
-    if not (n_dim == 2 or n_dim == 3):
-        raise ValueError(f"Error: x_f {x_f.shape} has wrong dimensions.")
+        if isinstance(meta_bad, str):
+            meta_bad = True if meta_bad=="True" else False
 
-    time_axis = n_dim - 1
-    n_samples = x_t.shape[time_axis]
+        vep.append(meta_vep)
+        pvep.append(meta_pvep)
+        tvep.append(int(meta_tvep))
+        bad.append(meta_bad)
 
-    x_f = np.fft.fft(x_t, n_samples)
-    freq = np.fft.fftfreq(n_samples, 1 / fs)
+    return vep, pvep, tvep, bad
 
-    fac = -1j * np.sign(freq)
-    prod = np.multiply(x_f, fac)
+def generate_report(exp_name):
+    success, erp, erp_ts, speed, _ = parse_evt_file(ANNOTATION_PATH, SAMPLE_RATE)
 
-    x_ht = np.fft.ifft(prod, axis=time_axis)
+    num_trials = len(erp)
+    vep, pvep, tvep, bad = parse_trial_files(exp_name, num_trials)
 
-    return x_ht
+    print(len(erp))
+    print(len(vep))
 
 
-def artifact_rejection(x, z_t, v_t_h, v_t_l, fs=500.0, croplen=50):
-    x_ht = hilbert(x, fs)
-    x_env = np.absolute(x + 1j * x_ht)
+    if success:
+        with open(f"{exp_name}/report_{exp_name}.txt", "w") as f:
+            vep_bci = np.logical_and(vep, np.logical_not(bad))
 
-    mu_x = np.mean(x_env, axis=1)
-    sigma_x = np.std(x_env, axis=1)
-    z = ((x_env.T - mu_x) / sigma_x).T
-    z_sum = np.absolute(np.sum(z, axis=0) / np.sqrt(z.shape[0]))[croplen:-croplen]
-    z_sum_max = np.amax(z_sum)
+            tp = np.sum(np.logical_and(vep_bci==True, erp==True))
+            fp = np.sum(np.logical_and(vep_bci==True, erp==False))
+            tn = np.sum(np.logical_and(vep_bci==False, erp==False))
+            fn = np.sum(np.logical_and(vep_bci==False, erp==True))
 
-    if z_sum_max > z_t:
-        trial_good = False
+            accuracy = np.round((tp + tn) / (num_trials) * 100, 2)
+            recall = np.round(tp / (tp + fn) * 100, 2)
+            precision = np.round(tp / (tp + fp) * 100, 2)
 
-    N_ch = x.shape[0]
-    sup_t = np.absolute(z) > z_t * np.sqrt(N_ch) / N_ch * 2
+            f.write(f"Experiment: {exp_name}\n\n")
+            f.write("Summary statistics:\n")
+            f.write(f"Accuracy: {accuracy}%\n")
+            f.write(f"Recall: {recall}%\n")
+            f.write(f"Precision: {precision}%\n")
+            f.write("\n")
 
-    bad_ch_z = np.any(sup_t, axis=1)
+            f.write(f"{'Trial Number' : <15}{'VEP - human' : ^15}{'VEP - BCI' : ^15}{'Prob(VEP)' : ^15}{'Time - human' : ^15}{'Time - BCI' : ^15}{'Bad Trial' : ^10}{'Speed' : >10}\n")
 
-    sup_t = np.absolute(x) > v_t_h
-    bad_ch_v_h = np.any(sup_t, axis=1)
-
-    sub_t = np.absolute(x) < v_t_l
-    temp1 = np.logical_and(sub_t[:, :-2], sub_t[:, 1:-1])
-    temp2 = np.logical_and(temp1, sub_t[:, 2:])
-    bad_ch_v_l = np.any(temp2, axis=1)
-    bad_ch_temp = np.logical_or(bad_ch_z, bad_ch_v_h)
-    bad_ch = np.logical_or(bad_ch_temp, bad_ch_v_l)
-
-    trial_good = True
-    ratio = np.sum(bad_ch) / bad_ch.shape[0]
-    if ratio > 0.1:
-        # Trial is bad
-        trial_good = False
-
-    return x, trial_good, bad_ch
+            for trial_num in range(num_trials):
+                f.write(f"{trial_num+1 : <15}{erp[trial_num] : ^15}{vep[trial_num] : ^15}{np.round(pvep[trial_num],2) : ^15}{erp_ts[trial_num] : ^15}{tvep[trial_num] : ^15}{bad[trial_num] : ^10}{speed[trial_num] : >10}\n")
 
 
-def notch_filter(x, fs, f0, Q):
-    b, a = signal.iirnotch(f0, Q, fs)
-    return signal.filtfilt(b, a, x, axis=1)
+    else:
+        with open(f"{exp_name}/report_{exp_name}.txt", "w") as f:
+            f.write(f"{'Trial Number' : <15}{'VEP - BCI' : ^10}{'Prob(VEP)' : ^10}{'Time - BCI' : ^10}{'Bad Trial' : >5}")
 
-
-def bp_filter(x, fs, fl, fh, N_bp):
-    sos = signal.butter(N_bp, [fl, fh], btype="bandpass", output="sos", fs=fs)
-    return signal.sosfiltfilt(sos, x, axis=1)
-
-
-def baseline_correction(x):
-    baseline = np.mean(x[:, 0:100], axis=1)
-    x = (x.T - baseline).T
-    return x
-
-
-def rereferencing(x):
-    m_x = np.mean(x, axis=0)
-    return x - m_x
-
-
-def preprocess(x, fs, f0, Q, fl, fh, filter_order, z_t, v_t_h, v_t_l, padlen):
-    x = (x.T - np.mean(x, axis=1)).T
-    x = rereferencing(x)
-    y = np.zeros((x.shape[0], x.shape[1] + 2 * padlen))
-    y[:, padlen:-padlen] = x
-    y = notch_filter(y, fs, f0, Q)
-    y = bp_filter(y, fs, fl, fh, filter_order)
-    x = y[:, padlen:-padlen]
-    # x = baseline_correction(x)
-
-    x, trial_good, bad_ch = artifact_rejection(x, z_t, v_t_h, v_t_l)
-    return x, trial_good, bad_ch
-
+            for trial_num in range(num_trials):
+                f.write(f"{trial_num+1 : <15}{vep[trial_num] : ^10}{np.round(pvep[trial_num],2) : ^10}{tvep[trial_num] : ^10}{bad[trial_num] : >5}")
 
 def plot_channels(
     x,
@@ -218,92 +209,31 @@ def plot_channels(
     """
     plt.figure()
     n_samples = x.shape[1]
-    t = np.linspace(0, (n_samples - 1) / fs, n_samples) * 1000
+    t = np.linspace(-(n_samples - 1) / fs, 0, n_samples) * 1000
     for i, c in enumerate(ch):
         if color is not None:
             plt.plot(t, x[c] - i * voffset, label=f"{ch_prefix}{c+1}", color=color)
         else:
-            plt.plot(t, x[c] - i * voffset, label=f"{ch_prefix}{c+1}")
+            plt.plot(t, x[c] - i * voffset, label=f"{ch_prefix}{c+1}", alpha=0.8)
 
-    if y_true is not None:
-        title = title + f" y_true = {y_true}"
+    if y_true:
+        if t_true is not None:
+            plt.axvline(t[-1] + t_true, color="black")
 
-    if y_pred is not None:
-        title = title + f" y_pred = {y_pred}"
-
-    if t_true is not None:
-        plt.axvline(t[-1] + t_true, color="black")
-
-    if t_pred is not None:
-        plt.axvline(t[-1] + t_pred, color="red")
+    if y_pred:
+        if t_pred is not None:
+            plt.axvline(t[-1] + t_pred, color="red")
 
     if trial_good is not None:
         title = title + f" good trial = {trial_good}"
 
     plt.xlabel("Time [ms]")
     plt.ylabel("Voltage [muV]")
+    plt.grid()
     plt.title(title)
 
     if show_legend:
         plt.legend()
-
-
-class Data:
-    def __init__(self) -> None:
-        self.x = None
-        self.y = None
-        self.ids = None
-        self.erp_t = None
-        self.speed = None
-        self.bad_ch = None
-
-    def load_x(self, directory):
-        self.x = np.load(directory + "x.npy")
-
-    def load_yidst(self, directory, load_bad_ch):
-        self.y = np.load(directory + "y.npy")
-        self.ids = np.load(directory + "ids.npy")
-        self.erp_t = np.load(directory + "erp_t.npy")
-        self.speed = np.load(directory + "speed.npy")
-        if load_bad_ch:
-            self.bad_ch = np.load(directory + "bad_ch.npy")
-
-
-def load_xyidst_threaded(directory, verbose=False, load_bad_ch=False):
-    d = Data()
-
-    tx = Thread(target=d.load_x, args=[directory])
-    tx.start()
-
-    tyidst = Thread(target=d.load_yidst, args=[directory, load_bad_ch])
-    tyidst.start()
-
-    tyidst.join()
-    tx.join()
-    x = d.x
-    y = d.y
-    ids = d.ids
-    erp_t = d.erp_t
-    speed = d.speed
-    bad_ch = None
-    if load_bad_ch:
-        bad_ch = d.bad_ch
-
-    if verbose:
-        print(f"Finished loading data from {directory}:")
-        print(f"x shape: {x.shape}")
-        print(f"y shape: {y.shape}")
-        print(f"ids shape: {ids.shape}")
-        print(f"erp_t shape: {erp_t.shape}")
-        print(f"speed shape: {speed.shape}")
-        if load_bad_ch:
-            print(f"bad_ch shape: {bad_ch.shape}")
-
-        print("\n")
-
-    del d
-
-    return x, y, ids, erp_t, speed, bad_ch
 
 
 def plot_channels_fft(
@@ -332,69 +262,79 @@ def plot_channels_fft(
         plt.legend()
 
 
-if __name__ == "__main__":
-    ch = [60 + i for i in range(20)]
-    # ch = [111]
-    padlen = 1500
-    f0 = 50
-    Q = 50.0
-    fs = 500.0
-    filter_order = 2
-    fl = 1.6
-    fh = 25.0
+def xcorr(ns_x, bci_x):
+    N_trials = ns_x.shape[0]
+    delays = np.zeros(N_trials)
+    peaks = np.zeros(N_trials)
+    for i in range(N_trials):
+        ns = ns_x[i,0,:]
+        bci = bci_x[i,0,:]
+        corr = signal.correlate(ns_x[i,0,:], bci_x[i,0,:])
+        lags = signal.correlation_lags(len(ns), len(bci)) * 2
+        delays[i] = lags[np.argmax(corr)]
+        peaks[i] = np.amax(corr)
+
+    return delays, peaks
+
+def display_trials(exp_name):
+     # ch = [111]
+    fs=500.0
+    f0=50.0
+    Q=50.0
+    fl=1.8
+    fh=30.0
+    filter_order=8
+    z_t=19
+    v_t_h=120
+    v_t_l=0.01
+    padlen=1500
+
     N_ch = 128
-    ch_numbers = np.linspace(0, N_ch - 1, N_ch)
+    ch_numbers = np.linspace(0, N_ch - 1, N_ch, dtype=int)
+    ch_include = np.array([66, 67, 71, 72, 73, 76, 77, 78, 84, 85])
+    ch = [c - 1 for c in ch_include]
 
-    evt_file_path = "Jakob1208/jakob_loom_20220812_102837"
-    time_before_coll = 1
-    success, silje_erp, silje_erp_ts, speeds, error_code = read_evt_file(
-        evt_file_path, fs, time_before_coll
-    )
+    x_raw = []
+    y = [] # erp, erp_prob, t, discard
+    trial_num = 1
+    while os.path.isfile(os.path.join(exp_name, f"trial{trial_num}.npy")):
+        eeg = np.load(os.path.join(exp_name, f"trial{trial_num}.npy"))
+        x_raw.append(eeg)
 
-    for i in range(60):
-        trialnum = i + 1
-        exp_name = "Jakob1208"
-        x_j, y_pred, y_prob, t_pred, discard = load_trial(exp_name, trialnum)
-        x_j = x_j[:, 25:]
-        y_true = silje_erp[i]
-        t_true = silje_erp_ts[i]
-        speed = speeds[i]
-        if speed == 2:
-            speed_str = "2s"
-        elif speed == 3:
-            speed_str = "3s"
-        else:
-            speed_str = "4s"
+        meta = np.load(os.path.join(exp_name, f"trial{trial_num}results.npy"))
+        y.append(meta)
 
-        x_proc, trial_good, _ = preprocess(
-            x_j, fs, f0, Q, fl, fh, filter_order, 19, 120, 0.01, padlen
-        )
+        trial_num += 1
 
-        """ z_t = np.absolute(np.sum(z, axis=0) / np.sqrt(z.shape[0]))
-        z_t_plt = z_t[50:-50]
-        n_samples = z_t.shape[0]
-        t = np.linspace(0, (n_samples - 1) / fs, n_samples) * 1000
-        t_plt = t[50:-50]
-        plt.figure()
-        plt.plot(t_plt, z_t_plt)
-        plt.title(f"Trial {trialnum} z score")
-        plt.xlabel("Time [ms]")
-        plt.ylabel("z score") """
+    x_raw = np.array(x_raw)
+    y = np.array(y)
 
-        """ plot_channels(x_j, ch, title=f"{exp_name} Trial {trialnum}")
-        plot_channels_fft(x_j, ch, title=f"{exp_name} FFT Trial {trialnum}") """
+    x = np.zeros(x_raw.shape)
+    for i in range(x.shape[0]):
+        x[i], _, _, _, _ = preprocess(
+                x_raw[i], fs, f0, Q, fl, fh, filter_order, z_t, v_t_h, v_t_l, padlen
+            )
 
-        plot_channels(
-            x_proc,
-            ch,
-            voffset=20,
-            title=f"Trial {trialnum}, speed={speed_str}",
-            y_true=y_true,
-            y_pred=y_pred,
-            t_true=t_true,
-            t_pred=t_pred,
-            trial_good=trial_good,
-        )
-        # plot_channels_fft(x_proc, ch, title=f"{exp_name} FFT Trial {trialnum} preprocessed")
-
+    for trial_num in range(x.shape[0]):
+        plot_channels(x[trial_num], ch, show_legend=True, voffset=5, title=f"trial {trial_num}, vep = {y[trial_num, 0]}", y_pred = y[trial_num, 0], t_pred = y[trial_num, 2], trial_good=np.logical_not(y[trial_num, 3]))
+        #plot_channels_fft(x[trial_num], ch, voffset=5, show_legend=False)
         plt.show()
+
+
+    plt.figure()
+    plt.plot(y[:,0], label="VEP", alpha=0.8, color="black")
+    plt.plot(y[:,1], label="Pr(VEP)", linestyle="--", alpha=0.6, color="darkgray")
+    plt.vlines(np.nonzero(y[:,3]), 0, 1, label="Discard", color="red", alpha=0.5)
+    plt.show()
+
+def main():
+    for exp_name in EXP_NAMES:
+        if GENERATE_REPORT:
+            generate_report(exp_name)
+
+        if DISPLAY_TRIALS:
+           display_trials(exp_name)
+
+
+if __name__ == "__main__":
+    main()

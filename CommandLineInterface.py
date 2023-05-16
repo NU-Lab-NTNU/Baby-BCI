@@ -1,6 +1,6 @@
 from Operator import Operator
 
-from offline.Transformer import TransformerKMeans
+from offline.Transformer import TransformerExpandedEmanuel
 from offline.Classifier import Classifier
 from offline.Regressor import Regressor
 
@@ -14,7 +14,7 @@ class CommandLineInterface:
         self.operator = Operator()
 
     def setup(self):
-        x = input("Ready for startup? [y/n/q]")
+        x = input("Ready for startup? [y/n/q]").lower()
         if x == "y":
             self.operator.startup()
 
@@ -23,14 +23,14 @@ class CommandLineInterface:
     def do_experiment(self):
         x = "n"
         while x == "n":
-            x = input("Start experiment? [y/n/q]")
+            x = input("Start experiment? [y/n/q]").lower()
             if x == "y":
                 self.operator.control_loop()
 
         return x
 
     def setup_and_run(self):
-        x = input("Ready to start experiment? [y/n/q]")
+        x = input("Ready to start experiment? [y/n/q]").lower()
         if x == "y":
             self.operator.startup()
             self.operator.control_loop()

@@ -26,26 +26,26 @@ def validate_files(raw_f, raw_e, raw_dict, parent_folder):
         raw_t, sfreq = get_timestamps_raw(raw_file, event="stm-")
 
     if raw_t is None or sfreq == 0:
+        print(f"{raw_file}: raw_t is None or sfreq == 0")
         return False, raw_dict
     else:
         raw_dict[raw_f] = raw_t, sfreq
 
-    evt_t = get_timestamps_evt(evt_file, sfreq, event="stm-")
+    """ evt_t = get_timestamps_evt(evt_file, sfreq, event="stm-")
     if evt_t is None:
-        # print("Couldn't read stm- events from event file")
-        return False, raw_dict
+        print(f"{raw_file}: Couldn't read stm- events from event file")
+        return False, raw_dict """
 
     oz_t = get_timestamps_evt(evt_file, sfreq, event="Oz")
     if oz_t is None:
-        # print("Not valid due to no Oz comments")
+        print(f"{raw_file}: Not valid due to no Oz comments")
         return False, raw_dict
 
     if sfreq > 500.1 or sfreq < 499.9:
-        # print("Not valid due to sampling frequency: ", sfreq)
-        if sfreq < 249.9 or sfreq > 250.1:
-            return False, raw_dict
+        print(f"{raw_file}: Not valid due to sampling frequency: {sfreq}")
+        return False, raw_dict
 
-    timing_good = False
+    """ timing_good = False
     raw_l = raw_t.shape[0]
     evt_l = evt_t.shape[0]
 
@@ -56,16 +56,17 @@ def validate_files(raw_f, raw_e, raw_dict, parent_folder):
             timing_good = True
 
     if not timing_good:
-        return False, raw_dict
+        print(f"{raw_file}: discrepency in timing")
+        return False, raw_dict """
 
     return True, raw_dict
 
 
-def copy_files(parent_folder, destination_folder):
+def copy_files(parent_folder, destination_folder, fnames_include):
     raw = []
     evt = []
     raw_dict = {}
-    print("Beginning read of files in ", parent_folder)
+    print(f"Beginning read of files in {parent_folder}\n")
     for d in os.listdir(parent_folder):
         tmp_raw = []
         tmp_evt = []
@@ -73,10 +74,16 @@ def copy_files(parent_folder, destination_folder):
             continue
         for f in os.listdir(parent_folder + d):
             file_name, file_ext = os.path.splitext(f)
+
             if file_ext == ".raw":
-                tmp_raw.append(d + "/" + file_name)
-            if file_ext == ".evt":
-                tmp_evt.append(d + "/" + file_name)
+                if file_name in fnames_include:
+                    tmp_raw.append(d + "/" + file_name)
+                    print(f"Found file to copy: {file_name}")
+
+            elif file_ext == ".evt":
+                if file_name in fnames_include:
+                    tmp_evt.append(d + "/" + file_name)
+                    print(f"Found file to copy: {file_name}")
 
         hope = True
         l_raw = len(tmp_raw)
@@ -112,7 +119,7 @@ def copy_files(parent_folder, destination_folder):
                 if not file_added:
                     hope = False
 
-    print("\nStarting copying of ", len(raw), " files")
+    print(f"Starting copying of {len(raw)} files")
     for i, r in enumerate(raw):
         rs = r.split("/")
         shutil.copyfile(parent_folder + r + ".raw", destination_folder + rs[1] + ".raw")
@@ -120,13 +127,27 @@ def copy_files(parent_folder, destination_folder):
             parent_folder + evt[i] + ".evt", destination_folder + rs[1] + ".evt"
         )
 
-    print("Successfully copied ", len(raw), " files")
+    print(f"Successfully copied {len(raw)} files")
 
 
 if __name__ == "__main__":
     print("young")
+    age = "lessthan7"
+    sort_key = "younger than" if age == "lessthan7" else "older than"
+
+    babies_file = "C:/Users/vegardkb/NU-BCI/offline/data/" + age + "/baby_files.txt"
+    fnames_include = []
+    with open(babies_file, "r") as f:
+        lines = f.readlines()
+        for line in lines:
+            for fname in line.split(","):
+                fnames_include.append(fname)
+
+    print(fnames_include)
+
+
     root = "T:/su/ips/Nullab/Analysis/EEG/looming/Silje-Adelen/Infant VEP Annotations/1 )Annotated_Silje"
-    target_folder = "C:/Users/vegardkb/NU-BCI/offline/data/lessthan7/raw/"
+    target_folder = "C:/Users/vegardkb/NU-BCI/offline/data/" + age + "/raw/"
     threads = []
     for d1 in os.listdir(root):
         root1 = os.path.join(root, d1)
@@ -135,10 +156,10 @@ if __name__ == "__main__":
 
         for d2 in os.listdir(root1):
             root2 = root1 + "/" + d2 + "/"
-            if not "younger than" in d2.lower() or not os.path.isdir(root2):
+            if not sort_key in d2.lower() or not os.path.isdir(root2):
                 continue
 
-            t = Thread(target=copy_files, args=(root2, target_folder))
+            t = Thread(target=copy_files, args=(root2, target_folder, fnames_include))
             threads.append(t)
             t.start()
             print(f"Thread {len(threads)} started")

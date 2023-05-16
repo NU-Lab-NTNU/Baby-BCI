@@ -19,21 +19,20 @@ def plot_ROC(y_true, p_pred, phase):
     plt.legend(loc="lower right")
 
 
-def plot_time_scatter(t_true, t_pred, phase):
+def plot_time_scatter(t_true, t_pred, y_prob, group):
     plt.figure()
-    plt.title(phase + " VEP time")
+    plt.title(group + " VEP time")
     plt.xlabel("True time [ms]")
     plt.ylabel("Predicted time [ms]")
 
     t_true = 2 * t_true
     t_pred = 2 * t_pred
-    diff = np.absolute(t_true - t_pred)
 
-    plt.scatter(t_true, t_pred, c=diff, cmap="viridis", s=5, alpha=0.6, lw=1)
+    plt.scatter(t_true, t_pred, c=y_prob, cmap="viridis_r", s=5, alpha=0.6, lw=1)
     plt.colorbar()
-    plt.clim(vmin=0, vmax=np.amax(diff))
-    t_min = min(np.amin(t_true), np.amin(t_pred))
-    t_max = max(np.amax(t_true), np.amax(t_pred))
+    plt.clim(vmin=np.amin(y_prob), vmax=np.amax(y_prob))
+    t_min = min(np.amin(t_true), -1500)
+    t_max = max(np.amax(t_true), 0)
     plt.plot([t_min, t_max], [t_min, t_max], color="navy", lw=1, linestyle="--")
 
 
@@ -77,3 +76,22 @@ def kmeans_transformer_review(transformer, x, y, bad_chs):
             plt.ylabel("Normalized Amplitude")
 
         plt.show()
+
+def kmeanskernel_transformer_review(transformer, x, y, bad_chs):
+    n_ch_c = transformer.n_clusters_ch
+    n_ker = transformer.n_kernels
+
+    for cluster_idx in range(n_ch_c):
+        mask = transformer.channel_cluster == cluster_idx
+        names = transformer.channel_names[mask].tolist()
+        print(f"Cluster {cluster_idx+1}:")
+        print(names)
+
+
+    for i in range(n_ch_c):
+        plt.figure()
+        plt.title(f"Spatial cluster {i+1}")
+        for j in range(n_ker):
+            plt.plot(transformer.kernels[i,j], label=f"kernel {j+1}")
+
+    plt.show()
