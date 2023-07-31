@@ -1,19 +1,16 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 # NU-BCI
 
-WARNING:
-  - The project is currently in an unfinished, minimally tested, state and in rapid development. Releases will be published whenever the author feels somewhat confident in the performence and fidelity of the system.
+Requirements:
   - In order to read real-time data stream from AmpServer (through AmpServerClient.py), [AmpServer Pro SDK](https://www.egi.com/images/stories/placards/ASProSDK_v21_ugid_8409500-57_20181029.pdf) is required.
  
 What this project is:
   - The primary goal of this project is to create a bci-system fit for our lab's needs:
     * Real time EEG data from EGI NetAmps amplifiers (specifically NA300).
-    * Two-way communication with E-Prime (stimulus presentation software).
-    * Allow for inter-trial classification.
-    * Enable my successors to focus on neuropsychology research and ML-algorithms rather than multithreading and TCP sockets.
+    * Two-way communication with E-Prime.
+    * Allow for trial-wise classification.
   - Secondary goals include:
     * Provide inspiration, possibly even a working framework, to other labs seeking to create a bci-system using the same or similar technologies.
-    * Expand flexibility by providing support for other EGI NetAmps series.
     * Hide as much low-level stuff as possible in order to improve accessibility.
   - Technologies used:
     * Standard python libraries are used almost exclusively, the only exception being numpy.
@@ -51,9 +48,13 @@ Software versions:
 System layout:
 [![](https://mermaid.ink/img/pako:eNqNkstqwzAQRX9FaB0vuujLhULimLSLloKzs7NQrXEiooeRR4UQ598rW86DhIC1GuaembmIu6el4UBjuras3pDlvNDEv0WeRj9WKFiRKHpvMxTKSdGSWf7hFNOrQM3zNF2QqaqlqATYwHYtzpC1JM29lIH981IYSHuiNLoSa2cZCqOblgw3k148jZBScb9j8NNrSyuYJAqQhQNJ_u2iWfK5ulxwvj_NS8maJni7NHBGktCeXbUHR9NgV1bEOKwdnvjkRlgUOkhS6G2GOwnkgTRozRZiC3xSGmlsV71dY4_jsKdx2PM47OWI_UoHA9eVN-DrfZBOqAKrmOA-PvtusKC4AQUFjX3JoWJOYkELffCoq_3XQsoFGkvjiskGJpQ5NNlOlzRG69cP0Fwwn0Z1bEI_8xVi2qf18A8JNeRm?type=png)](https://mermaid.live/edit#pako:eNqNkstqwzAQRX9FaB0vuujLhULimLSLloKzs7NQrXEiooeRR4UQ598rW86DhIC1GuaembmIu6el4UBjuras3pDlvNDEv0WeRj9WKFiRKHpvMxTKSdGSWf7hFNOrQM3zNF2QqaqlqATYwHYtzpC1JM29lIH981IYSHuiNLoSa2cZCqOblgw3k148jZBScb9j8NNrSyuYJAqQhQNJ_u2iWfK5ulxwvj_NS8maJni7NHBGktCeXbUHR9NgV1bEOKwdnvjkRlgUOkhS6G2GOwnkgTRozRZiC3xSGmlsV71dY4_jsKdx2PM47OWI_UoHA9eVN-DrfZBOqAKrmOA-PvtusKC4AQUFjX3JoWJOYkELffCoq_3XQsoFGkvjiskGJpQ5NNlOlzRG69cP0Fwwn0Z1bEI_8xVi2qf18A8JNeRm)
 
-Timeline:
-  - Future plans:
-    * v1.0.0 Command line interface
+Code overview:
+  - Top layer directory contains the code for UI and master object (CommandLineInterface.py and Operator.py), as well as git-related code.
+  - /modules/ contains all slave objects in the NU-BCI framework.
+  - /config/ contains the config file and a python script for setting the configuration.
+  - /data/ is the location where EEG data and metainformation (predictions) are saved after an experiment.
+  - /eprime/ contains E-Prime 2.1 scripts.
+  - /offline/ contains all code related to ML and data analysis.
 
 This project is worked on by NTNU's NuLab:
   - [In-house website](https://nulab-ntnu.github.io/)
