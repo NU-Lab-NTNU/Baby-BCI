@@ -1,5 +1,6 @@
-
+![alt text]([http://url/to/img.png](https://www.google.com/imgres?imgurl=https%3A%2F%2Frefineproject.eu%2Fwp-content%2Fuploads%2F2020%2F08%2FHorizon-H2020-logo.jpg&tbnid=hR79B-X7v0wjrM&vet=12ahUKEwig1d_04cWBAxUB8rsIHbTMAkUQMygAegQIARBS..i&imgrefurl=https%3A%2F%2Frefineproject.eu%2Fh2020%2F&docid=xNPu2K_jN1-ztM&w=300&h=200&q=european%20commission%20horizon%202020&ved=2ahUKEwig1d_04cWBAxUB8rsIHbTMAkUQMygAegQIARBS))
 This project has received funding from the European Union's Horizon 2020 research and innovation programme under the Marie Sklodowska-Curie grant agreement No. 897102
+
 # NU-BCI
 
 Requirements:
