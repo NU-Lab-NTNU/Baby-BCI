@@ -2,9 +2,9 @@
 ![alt text](https://github.com/NuLab-NTNU/NU-BCI/blob/master/images/infant%20with%20hood.png)
 
 This project has received funding from the European Union's Horizon 2020 research and innovation programme under the Marie Sklodowska-Curie grant agreement No. 897102
-![alt text](https://github.com/NuLab-NTNU/NU-BCI/blob/master/images/Horizon-H2020-logo.jpeg)
 
 # NU-BCI
+![alt text](https://github.com/NuLab-NTNU/NU-BCI/blob/master/images/Horizon-H2020-logo.jpeg)
 
 Requirements:
   - In order to read real-time data stream from AmpServer (through AmpServerClient.py), [AmpServer Pro SDK](https://www.egi.com/images/stories/placards/ASProSDK_v21_ugid_8409500-57_20181029.pdf) is required.
