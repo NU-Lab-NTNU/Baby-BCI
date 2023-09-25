@@ -1,6 +1,8 @@
-![alt text](https://github.com/NuLab-NTNU/NU-BCI/blob/master/images/Horizon-H2020-logo.jpeg)
+
 ![alt text](https://github.com/NuLab-NTNU/NU-BCI/blob/master/images/infant%20with%20hood.png)
+
 This project has received funding from the European Union's Horizon 2020 research and innovation programme under the Marie Sklodowska-Curie grant agreement No. 897102
+![alt text](https://github.com/NuLab-NTNU/NU-BCI/blob/master/images/Horizon-H2020-logo.jpeg)
 
 # NU-BCI
 
