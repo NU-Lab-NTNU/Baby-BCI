@@ -3,7 +3,7 @@
 
 This project has received funding from the European Union's Horizon 2020 research and innovation programme under the Marie Sklodowska-Curie grant agreement No. 897102
 
-# AIMCOACH
+# AIM_COACH
 ![alt text](https://github.com/NuLab-NTNU/NU-BCI/blob/master/images/Horizon-H2020-logo.jpeg)
 
 Requirements:
