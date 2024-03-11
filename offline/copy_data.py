@@ -1,7 +1,7 @@
 import os
 import shutil
 import numpy as np
-from data_finder import get_timestamps_evt, get_timestamps_raw
+from data_finder_whole_trial_prec import get_timestamps_evt, get_timestamps_raw
 from tqdm import tqdm
 from threading import Thread
 
@@ -132,38 +132,39 @@ def copy_files(parent_folder, destination_folder, fnames_include):
 
 if __name__ == "__main__":
     print("young")
-    age = "lessthan7"
-    sort_key = "younger than" if age == "lessthan7" else "older than"
+    ages = ["lessthan7", "greaterthan7"]
+    for age in ages:
+        sort_key = "younger than" if age == "lessthan7" else "older than"
 
-    babies_file = "C:/Users/vegardkb/NU-BCI/offline/data/" + age + "/baby_files.txt"
-    fnames_include = []
-    with open(babies_file, "r") as f:
-        lines = f.readlines()
-        for line in lines:
-            for fname in line.split(","):
-                fnames_include.append(fname)
+        babies_file = "C:/Users/dordev/Documents/NU-BCI/offline/data/" + age + "/baby_files.txt"
+        fnames_include = []
+        with open(babies_file, "r") as f:
+            lines = f.readlines()
+            for line in lines:
+                for fname in line.split(","):
+                    fnames_include.append(fname.strip())
 
-    print(fnames_include)
+        print(fnames_include)
 
 
-    root = "T:/su/ips/Nullab/Analysis/EEG/looming/Silje-Adelen/Infant VEP Annotations/1 )Annotated_Silje"
-    target_folder = "C:/Users/vegardkb/NU-BCI/offline/data/" + age + "/raw/"
-    threads = []
-    for d1 in os.listdir(root):
-        root1 = os.path.join(root, d1)
-        if not os.path.isdir(root1):
-            continue
-
-        for d2 in os.listdir(root1):
-            root2 = root1 + "/" + d2 + "/"
-            if not sort_key in d2.lower() or not os.path.isdir(root2):
+        root = "T:/Analysis/EEG/Looming/Silje-Adelen/3. BCI Annotation (Silje-Adelen)/1. Infant VEP Annotations/1 )Annotated_Silje"
+        target_folder = "C:/Users/dordev/Documents/NU-BCI/offline/data/" + age + "/raw/"
+        threads = []
+        for d1 in os.listdir(root):
+            root1 = os.path.join(root, d1)
+            if not os.path.isdir(root1):
                 continue
 
-            t = Thread(target=copy_files, args=(root2, target_folder, fnames_include))
-            threads.append(t)
-            t.start()
-            print(f"Thread {len(threads)} started")
+            for d2 in os.listdir(root1):
+                root2 = root1 + "/" + d2 + "/"
+                if not sort_key in d2.lower() or not os.path.isdir(root2):
+                    continue
 
-    for i, t in enumerate(threads):
-        t.join()
-        print(f"Thread {i+1} joined")
+                t = Thread(target=copy_files, args=(root2, target_folder, fnames_include))
+                threads.append(t)
+                t.start()
+                print(f"Thread {len(threads)} started")
+
+        for i, t in enumerate(threads):
+            t.join()
+            print(f"Thread {i+1} joined")

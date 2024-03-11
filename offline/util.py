@@ -140,22 +140,15 @@ def data_split_load_save(source_folder, target_folder, load_bad_ch, verbose=Fals
 
 def data_split_save(x, y, ids, oz_t, speed, target_folder, bad_ch = None, verbose=False):
     id_set = np.asarray(list(set(ids)))
-    K = 10
-    rng = np.random.default_rng()
-    groups = rng.integers(0, K, size=len(id_set))
-    zeros = True
-    while(zeros):
-        zeros=False
-        for k in range(K):
-            if np.sum(groups==k) == 0:
-                zeros = True
-                groups = rng.integers(0, K, size=len(id_set))
-                break
-
-
+    K = id_set.shape[0]
+    groups = np.random.permutation(K)
+    print(id_set)
+    print(groups)
     train_mask = np.zeros(len(ids), dtype=bool)
-    id_mask_train = np.logical_and(groups >= 0, groups <= 7)
+    id_mask_train = np.logical_and(groups >= 0, groups <= int(0.8*K) - 1)
+    print(f"ID MASK: {id_mask_train}")
     train_ids = id_set[id_mask_train]
+    print(f"Train ids: {train_ids}")
     for id in train_ids:
         train_tmp = ids == id
         train_mask = np.logical_or(train_mask, train_tmp)
@@ -163,8 +156,9 @@ def data_split_save(x, y, ids, oz_t, speed, target_folder, bad_ch = None, verbos
     print("Train: ", np.sum(id_mask_train), "(", np.sum(train_mask), ")")
 
     val_mask = np.zeros(len(ids), dtype=bool)
-    id_mask_val = groups == 8
+    id_mask_val = np.logical_and(groups >= int(0.8*K) - 1, groups <= int(0.9*K) - 1)
     val_ids = id_set[id_mask_val]
+    print(f"Val ids: {val_ids}")
     for id in val_ids:
         val_tmp = ids == id
         val_mask = np.logical_or(val_mask, val_tmp)
@@ -172,8 +166,9 @@ def data_split_save(x, y, ids, oz_t, speed, target_folder, bad_ch = None, verbos
     print("Val: ", np.sum(id_mask_val), "(", np.sum(val_mask), ")")
 
     test_mask = np.zeros(len(ids), dtype=bool)
-    id_mask_test = groups == 9
+    id_mask_test = np.logical_and(groups >=int(0.9*K) - 1, groups <= K - 1)
     test_ids = id_set[id_mask_test]
+    print(f"Test ids: {test_ids}")
     for id in test_ids:
         test_tmp = ids == id
         test_mask = np.logical_or(test_mask, test_tmp)
@@ -194,7 +189,7 @@ def data_split_save(x, y, ids, oz_t, speed, target_folder, bad_ch = None, verbos
 
 
 if __name__ == "__main__":
-    folder = "data/greaterthan7/npy/"
+    folder = "data/lessthan7/npy/"
     N = 5
     start_t = perf_counter()
     for i in range(N):

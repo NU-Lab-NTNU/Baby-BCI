@@ -16,14 +16,14 @@ if __name__ == "__main__":
     import os
 
 CLF_MODEL = "rf"
-TRANSFORMER_MODEL = "expandedemanuel"
-DATA_FOLDER = "data_emanuel/"
+TRANSFORMER_MODEL = "transformed"
+DATA_FOLDER = "data/"
 AGES = ["less", "greater"]
 SPEED_KEYS = ["fast", "medium", "slow"]
-MODE = "train"
+MODE = "test"
 FEATURE_SELECT = True
 
-TEST_MODEL_NAME = "RandomForest16-02-23.sav"
+TEST_MODEL_NAME = "RandomForest08-03-24.sav"
 
 class Classifier:
     def __init__(self, model="rf", feature_selection=False, verbose=0) -> None:
@@ -142,7 +142,7 @@ def train_classifier(source_folder, model_folder):
 
     print(f"Classifier input shape: {clf.input_shape}")
 
-    """ save = input("Save model? (y/n)")
+    save = input("Save model? (y/n)")
     if save == "y":
         path = model_folder
         if not os.path.isdir(path):
@@ -162,7 +162,7 @@ def train_classifier(source_folder, model_folder):
         with open(path, "wb") as model_file:
             pickle.dump(clf, model_file)
 
-        print(f"Model saved to {path}") """
+        print(f"Model saved to {path}")
 
 
     path = model_folder
@@ -178,11 +178,12 @@ def train_classifier(source_folder, model_folder):
 
     plt.show()
 
-def test_classifier(model_name):
+def test_classifier(source_folder, mdl_dir, model_name, age):
     phase = "test/"
     x, y, _, _, _, _ = load_xyidst_threaded(source_folder + phase, verbose=False)
 
-    path = data_folder + age + "/models/" + transformer_model + "/clf/" + model_name
+    path = mdl_dir + model_name
+    print(path)
     with open(path, "rb") as f:
         clf = pickle.load(f)
     y_pred, y_prob = clf.predict(x)
@@ -210,14 +211,14 @@ def main():
             speed_keys.append(speed_key)
 
     source_folders = [DATA_FOLDER + age + "than7/dataset/transformed/" + speed_key + "/" for age, speed_key in zip(ages, speed_keys)]
-    model_folders = [DATA_FOLDER + age + "than7/models/" + TRANSFORMER_MODEL + "/clf/" + speed_key + "/" + CLF_MODEL + "/" for age, speed_key in zip(ages, speed_keys)]
-
-    for src_dir, mdl_dir in zip(source_folders, model_folders):
+    model_folders = [DATA_FOLDER + age + "than7/models/" + TRANSFORMER_MODEL + "/clf/" + speed_key + "/" for age, speed_key in zip(ages, speed_keys)] #+ CLF_MODEL + "/" 
+    print(model_folders)
+    for src_dir, mdl_dir, age in zip(source_folders, model_folders, ages):
         if MODE == "train":
             train_classifier(src_dir, mdl_dir)
 
         else:
-            test_classifier(src_dir, mdl_dir, TEST_MODEL_NAME)
+            test_classifier(src_dir, mdl_dir, TEST_MODEL_NAME, age)
 
 if __name__ == "__main__":
     main()

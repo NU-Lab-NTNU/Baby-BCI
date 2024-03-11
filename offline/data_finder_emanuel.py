@@ -50,7 +50,7 @@ PRE_COLL_DURATION = {
 
 AGES = ["less", "greater"]
 SPEED_KEYS = ["fast", "medium", "slow"]
-DATA_FOLDER = "data_emanuel/"
+DATA_FOLDER = "./data/"
 
 def get_timestamps_evt(fname, sfreq, event="Oz"):
     """get timestamps as sample number from .evt file"""
@@ -372,7 +372,7 @@ def main(source_folders, target_folders, speed_keys):
 
 
 if __name__ == "__main__":
-    source_folders = ["data/" + age + "than7/raw/" for age in AGES]
+    source_folders = ["./data/" + age + "than7/raw/" for age in AGES]
     target_folders = [DATA_FOLDER + age + "than7/npy/" for age in AGES]
 
     main(source_folders, target_folders, SPEED_KEYS)

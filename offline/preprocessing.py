@@ -3,7 +3,7 @@ from scipy import signal
 import multiprocessing
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-
+from util import load_xyidst_threaded, data_split_save, save_xyidst
 if __name__ == "__main__":
     from util import load_xyidst_threaded, data_split_save, save_xyidst
     import warnings
@@ -12,7 +12,7 @@ if __name__ == "__main__":
 
 AGES = ["less", "greater"]
 SPEED_KEYS = ["fast", "medium", "slow"]
-DATA_FOLDER = "data_emanuel/"
+DATA_FOLDER = "data/"
 
 ARTIFACT_REJECTION_CODE = {
     0: "Good",
@@ -281,8 +281,9 @@ def preprocess_dataset(age, source_dir, target_dir, speed_key):
         ")",
     )
 
+    print(f"Saving {age}")
     data_split_save(x_proc, y, ids, erp_t, speed, target_dir, bad_ch=bad_chs, verbose=True)
-
+    print(f"Saved {age}")
     x = x[good_trials]
     ch = [65 + i for i in range(20)]
     xi = x[0] * 1e6
@@ -300,7 +301,8 @@ def preprocess_dataset(age, source_dir, target_dir, speed_key):
         y_true=y[0],
         t_true=erp_t[0],
     )
-    plt.show()
+    #plt.show()
+    print(f"Finished {age}")
 
 
 def combine_datasets():

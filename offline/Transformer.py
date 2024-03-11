@@ -13,7 +13,7 @@ if __name__ == "__main__":
 
 AGES = ["less", "greater"]
 SPEED_KEYS = ["fast", "medium", "slow"]
-DATA_FOLDER = "data_emanuel/"
+DATA_FOLDER = "data/"
 MODEL = "expandedemanuel"
 
 def find_zero_crossings(x_erp):
@@ -123,6 +123,9 @@ def time_freq_domain_features(x_erp):
     for i in range(x_erp.shape[0]):
         _, _, Sxx = signal.spectrogram(x_erp[i], fs=500.0, nperseg=32)
         Sxx_lst.append(Sxx)
+
+    for i, Sxx in enumerate(Sxx_lst):
+        print(f"Spectrogram {i} shape: {Sxx.shape}")
 
     spectr = np.stack(Sxx_lst, axis=0)
 
@@ -1356,6 +1359,7 @@ def train_transformer_on_data(source_folder, target_folder, model_folder, model,
 
     save_xyidst(x_feat, y, ids, erp_t, speed, target_folder + phase, verbose=True)
 
+    print("Done with train")
     phase = "val/"
     x, y, ids, erp_t, speed, bad_chs = load_xyidst_threaded(
         source_folder + phase, verbose=False, load_bad_ch=True
@@ -1365,6 +1369,8 @@ def train_transformer_on_data(source_folder, target_folder, model_folder, model,
 
     save_xyidst(x_feat, y, ids, erp_t, speed, target_folder + phase, verbose=True)
 
+
+    print("Done with val")
     phase = "test/"
     x, y, ids, erp_t, speed, bad_chs = load_xyidst_threaded(
         source_folder + phase, verbose=False, load_bad_ch=True
