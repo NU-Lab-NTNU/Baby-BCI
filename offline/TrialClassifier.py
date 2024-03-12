@@ -26,6 +26,7 @@ FEATURE_SELECT = True
 TEST_MODEL_NAME = "RandomForest08-03-24.sav"
 
 class Classifier:
+    """ This classifier is to differentiate between trials that have VEPs and those that do not. Should probably be a detector. """
     def __init__(self, model="rf", feature_selection=False, verbose=0) -> None:
         if model == "svc":
             self.name = "SVC"

@@ -17,6 +17,7 @@ def plot_ROC(y_true, p_pred, phase):
     plt.xlabel("False Positive Rate")
     plt.ylabel("True Positive Rate")
     plt.legend(loc="lower right")
+    plt.show()
 
 
 def plot_time_scatter(t_true, t_pred, y_prob, group):
