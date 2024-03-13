@@ -7,7 +7,7 @@ from util import load_xyidst_threaded, data_split_save, save_xyidst
 if __name__ == "__main__":
     from util import load_xyidst_threaded, data_split_save, save_xyidst
     import warnings
-
+    import os
     warnings.filterwarnings("error")
 
 AGES = ["less", "greater"]
@@ -331,6 +331,8 @@ def main():
     processes = []
 
     for age, source_dir, target_dir in zip(AGES, source_folders, target_folders):
+        if not os.path.isdir(target_dir):
+            os.makedirs(target_dir)
         for speed_key in SPEED_KEYS:
             p = multiprocessing.Process(target=preprocess_dataset, args=(age, source_dir, target_dir, speed_key))
             p.start()

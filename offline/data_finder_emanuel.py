@@ -363,6 +363,8 @@ def main(source_folders, target_folders, speed_keys):
 
     for source_dir, target_dir in zip(source_folders, target_folders):
         for speed_key in speed_keys:
+            if not os.path.isdir(target_dir):
+                os.makedirs(target_dir)
             p = multiprocessing.Process(target=parse_all_files, args=(source_dir, target_dir, speed_key))
             p.start()
             processes.append(p)

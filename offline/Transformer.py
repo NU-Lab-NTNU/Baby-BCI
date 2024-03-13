@@ -1236,86 +1236,6 @@ class TransformerConnectivityDummy(Transformer):
         return x_feat
 
 
-""" class Transformer_V0_2023(Transformer):
-     def __init__(self) -> None:
-        super().__init__()
-
-        self.name = "Transformer_v0_2023"
-
-        self.ch_include = np.array([66, 67, 71, 72, 73, 76, 77, 78, 84, 85]) - 1
-
-        # no mean over freq
-        fmin = 0.5
-        #fmax = 1.38
-        fmax = 20
-        fnum = 20
-        self.freqs = np.logspace(*np.log10([fmin, fmax]), num=fnum)
-        print(self.freqs)
-        # Just PLV
-        #self.methods = ['coh', 'plv', 'ciplv', 'pli', 'wpli']
-        self.methods = ['plv', 'wpli']
-        self.sfreq = 500.0
-
-    def fit_transform(self, x, _, erp_t, bad_ch):
-        self.input_shape = (x.shape[1], x.shape[2])
-        x_feat = self.transform(x, bad_ch)
-        self.output_shape = (1, x_feat.shape[1])
-        return x_feat
-
-    def spatial_filter_transform(self, x, bad_ch):
-        n_dim = len(x.shape)
-        if not (n_dim == 2 or n_dim == 3):
-            raise ValueError(f"x {x.shape} has wrong dimensions.")
-
-        ch_mask = np.zeros(self.N_ch, dtype=bool)
-        for i in range(self.N_ch):
-            ch_mask[i] = np.any(self.ch_include == i)
-
-        if n_dim == 2:
-            ret_arr = x[ch_mask]
-        else:
-            ret_arr = x[:, ch_mask]
-
-        return ret_arr
-
-    def feature_extract(self, x):
-
-            x_feat: shape(n_epochs, n_methods, n_frequencies)
-
-        n_dim = len(x.shape)
-        if not (n_dim == 2 or n_dim == 3):
-            raise ValueError(f"x {x.shape} has wrong dimensions.")
-
-        time_axis = n_dim - 1
-
-        time_per_epoch = x.shape[-1] / self.sfreq
-
-        # [(n_epochs, n_connections, n_freqs) for each method]
-        #n_cycles = np.array([freq / 2 for freq in self.freqs])
-        n_cycles = np.array([freq * time_per_epoch / 2 for freq in self.freqs])
-        spectral_conn_list = spectral_connectivity_time(x, self.freqs, method=self.methods, sfreq=self.sfreq, n_cycles=n_cycles)
-        print(f"len(spectral_conn_list) = {len(spectral_conn_list)}")
-        av_list = []
-
-        for i, spectral_conn in enumerate(spectral_conn_list):
-            av_list.append(np.mean(spectral_conn.get_data(), axis=1))
-            print(av_list[-1].shape)
-
-
-        x_feat = np.swapaxes(np.array(av_list), 0, 1)
-
-
-        # might have to be more careful with dimensions of x_feat
-        return x_feat
-
-    def transform(self, x, bad_ch):
-        x_ch_filt = self.spatial_filter_transform(x, bad_ch)
-
-        x_feat = self.feature_extract(x_ch_filt)
-        return x_feat """
-
-
-
 def get_model(model, age):
     if model == "kmeans":
         transformer = TransformerKMeans()
@@ -1447,6 +1367,10 @@ def main():
     model_folders = [DATA_FOLDER + age + "than7/models/" + MODEL + "/transformer/" + speed_key + "/" for age, speed_key in zip(ages, speed_keys)]
 
     for source_dir, target_dir, model_dir, age, speed_key in zip(source_folders, target_folders, model_folders, ages, speed_keys):
+        if not os.path.isdir(target_dir):
+            os.makedirs(target_dir)
+        if not os.path.isdir(model_dir):
+            os.makedirs(model_dir)
         train_transformer_on_data(source_dir, target_dir, model_dir, MODEL, age, speed_key)
 
 

@@ -131,12 +131,11 @@ def copy_files(parent_folder, destination_folder, fnames_include):
 
 
 if __name__ == "__main__":
-    print("young")
     ages = ["lessthan7", "greaterthan7"]
     for age in ages:
         sort_key = "younger than" if age == "lessthan7" else "older than"
 
-        babies_file = "C:/Users/dordev/Documents/NU-BCI/offline/data/" + age + "/baby_files.txt"
+        babies_file = os.path.dirname(__file__) + "/data/" + age + "/baby_files.txt"
         fnames_include = []
         with open(babies_file, "r") as f:
             lines = f.readlines()
@@ -148,7 +147,9 @@ if __name__ == "__main__":
 
 
         root = "T:/Analysis/EEG/Looming/Silje-Adelen/3. BCI Annotation (Silje-Adelen)/1. Infant VEP Annotations/1 )Annotated_Silje"
-        target_folder = "C:/Users/dordev/Documents/NU-BCI/offline/data/" + age + "/raw/"
+        target_folder = os.path.dirname(__file__) + "/data/" + age + "/raw/"
+        if not os.path.isdir(target_folder):
+            os.makedirs(target_folder)
         threads = []
         for d1 in os.listdir(root):
             root1 = os.path.join(root, d1)
