@@ -167,7 +167,7 @@ class AgeClassifier:
         plt.xticks(np.arange(0, max(sorted_importances) + 0.1, 0.01))
         plt.title(f'{"Permutation" if type == 'permutation' else "Impurity"}-Based Feature Importance')
         plt.ylabel('Feature')
-        plt.xlabel('Effect of Each Feature on Final Classification Result')
+        plt.xlabel(f'Mean Decrease in {'Classification Accuracy Score' if type == 'permutation' else 'Impurity'}')
         plt.show()
 
 
