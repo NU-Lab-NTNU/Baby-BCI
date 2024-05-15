@@ -1,5 +1,7 @@
 from sklearn.ensemble import RandomForestClassifier
+from sklearn import tree
 from sklearn.svm import SVC
+from sklearn.inspection import permutation_importance
 from sklearn.discriminant_analysis import (
     QuadraticDiscriminantAnalysis,
     LinearDiscriminantAnalysis,
@@ -30,6 +32,8 @@ class AgeClassifier:
     def __init__(self) -> None:
         self.name = "RandomForest"
         self.clf = RandomForestClassifier(n_jobs=-1, n_estimators=300, max_depth=6, criterion="gini", min_samples_leaf=5, verbose=True)
+        self.feature_names = ['rms','median','std','var','maximum','minimum','p_amplitude','p_latency','p_dur','p_prom','n_amplitude','n_latency','n_dur','n_prom','frac_area_latency','frac_area_duration','zero_crossings','z_score','hjorth_mob','hjorth_act','petrosian_frac_dim','bandpower','mean_phase_d','std_phase_d','mean_spectral_entropy','mean_instantaneous_freq','sxx_f0.0_t128.0','sxx_f0.0_t352.0','sxx_f0.0_t576.0','sxx_f0.0_t800.0','sxx_f4.0_t128.0','sxx_f4.0_t352.0','sxx_f4.0_t576.0','sxx_f4.0_t800.0','sxx_f8.0_t128.0','sxx_f8.0_t352.0','sxx_f8.0_t576.0','sxx_f8.0_t800.0','sxx_f12.0_t128.0','sxx_f12.0_t352.0','sxx_f12.0_t576.0','sxx_f12.0_t800.0','sxx_f16.0_t128.0','sxx_f16.0_t352.0','sxx_f16.0_t576.0','sxx_f16.0_t800.0','sxx_f20.0_t128.0','sxx_f20.0_t352.0','sxx_f20.0_t576.0','sxx_f20.0_t800.0','sxx_f23.0_t128.0','sxx_f23.0_t352.0','sxx_f23.0_t576.0','sxx_f23.0_t800.0']
+        self.permutation_importances = {}
 
     def train_val_test(self, only_test=False):
         for phase in PHASES:
@@ -54,6 +58,7 @@ class AgeClassifier:
 
 
             trial_data = np.concatenate([np.array(trial) for trial in trials])
+            #self.feature_names = trial_data.names.tolist()
             print(f"Trial data dimensions: {trial_data.shape}")
             class_labels = np.concatenate([np.array(label) for label in labels])
             print(f"Class labels dimensions: {class_labels.shape}")
@@ -68,6 +73,9 @@ class AgeClassifier:
             
             self.evaluate(trial_data, class_labels, phase)
 
+            self.permutation_importances = permutation_importance(self.clf, trial_data, class_labels, n_repeats=500, random_state=53, n_jobs=-1)
+            print("---------------------PERMUTATION IMPORTANCES------------------------------")
+            print(self.permutation_importances)
         if not only_test:
             # Only save model if it's been trained, validated *and* tested.
             save = input("Save model (y/n)? ").lower() == 'y'
@@ -135,6 +143,34 @@ class AgeClassifier:
         with open(model_path, 'rb') as model:
             self.clf = pickle.load(model)
         self.train_val_test(only_test=True)
+
+    def visualise_tree(self):
+        trees = self.clf.estimators_
+        tree_to_visualise = np.random.randint(0, len(trees))
+        plt.figure(figsize=(30,20))
+        tree.plot_tree(trees[tree_to_visualise], filled=True, rounded=True)
+        plt.show()
+
+    def visualise_feature_importances(self, type='permutation'):
+        importances = self.permutation_importances['importances_mean'] if type == 'permutation' else self.clf.feature_importances_
+        stds = self.permutation_importances['importances_std'] if type == 'permutation' else np.std([tree.feature_importances_ for tree in self.clf.estimators_], axis=0)
+        sorted_idx = importances.argsort()
+        sorted_importances = importances[sorted_idx]
+        sorted_stds = stds[sorted_idx]
+        sorted_features = [self.feature_names[i] for i in sorted_idx]
+
+        plt.figure(figsize=(10, 8))
+        plt.barh(range(len(sorted_idx)), sorted_importances, align='center', xerr=sorted_stds)
+        # plt.barh(range(1, len(importances) + 1), importances, align='center')
+        # plt.yticks(range(1, len(importances) + 1), range(1, len(importances) + 1))
+        plt.yticks(range(len(sorted_idx)), sorted_features)
+        plt.xticks(np.arange(0, max(sorted_importances) + 0.1, 0.01))
+        plt.title(f'{"Permutation" if type == 'permutation' else "Impurity"}-Based Feature Importance')
+        plt.ylabel('Feature')
+        plt.xlabel('Effect of Each Feature on Final Classification Result')
+        plt.show()
+
+
         
 if __name__ == "__main__":
     random_forest = AgeClassifier()
@@ -144,6 +180,9 @@ if __name__ == "__main__":
     model_path = parser.parse_args().model_path
     if model_path:
         random_forest.load_and_test(model_path)
+        random_forest.visualise_tree()
+        random_forest.visualise_feature_importances(type='permutation')
+        random_forest.visualise_feature_importances(type='impurity')
     else:
         random_forest.train_val_test()    
         

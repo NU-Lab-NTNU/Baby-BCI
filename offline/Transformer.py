@@ -952,10 +952,10 @@ class TransformerExpandedEmanuel(Transformer):
 
     def fit_transform(self, x, y, erp_t, bad_ch):
         self.fit(x, y, erp_t, bad_ch)
-        return self.transform(x, bad_ch)
+        return self.transform(x, bad_ch)[0]
 
     def transform(self, x, bad_ch):
-        return expanded_emanuel_features(x, bad_ch, self.oz_mask, self.erp_mask, self.ref_mask)[0]
+        return expanded_emanuel_features(x, bad_ch, self.oz_mask, self.erp_mask, self.ref_mask)
 
     def check_enough_good_ch(self, bad_ch):
         n_dim = len(bad_ch.shape)
@@ -1285,8 +1285,11 @@ def train_transformer_on_data(source_folder, target_folder, model_folder, model,
         source_folder + phase, verbose=False, load_bad_ch=True
     )
 
-    x_feat = transformer.transform(x, bad_chs)
-
+    x_feat, x_val_names = transformer.transform(x, bad_chs)
+    print("-----------------------------------------")
+    print("Validation names:")
+    print(x_val_names)
+    print("-----------------------------------------")
     save_xyidst(x_feat, y, ids, erp_t, speed, target_folder + phase, verbose=True)
 
 
@@ -1296,8 +1299,11 @@ def train_transformer_on_data(source_folder, target_folder, model_folder, model,
         source_folder + phase, verbose=False, load_bad_ch=True
     )
 
-    x_feat = transformer.transform(x, bad_chs)
-
+    x_feat, x_test_names = transformer.transform(x, bad_chs)
+    print("-----------------------------------------")
+    print("Test names:")
+    print(x_test_names)
+    print("-----------------------------------------")
     save_xyidst(x_feat, y, ids, erp_t, speed, target_folder + phase, verbose=True)
 
     print(f"Transformer output shape: {transformer.output_shape}")
