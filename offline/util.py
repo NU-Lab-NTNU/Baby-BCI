@@ -82,7 +82,7 @@ class Data:
         if load_bad_ch:
             self.bad_ch = np.load(directory + "bad_ch.npy")
 
-def save_xyidst(x, y, ids, erp_t, speed, folder, bad_ch=None, verbose=False):
+def save_extracted_data(x, y, ids, erp_t, speed, folder, bad_ch=None, verbose=False):
     np.save(folder + "x.npy", x)
     np.save(folder + "y.npy", y)
     np.save(folder + "ids.npy", ids)
@@ -180,12 +180,12 @@ def data_split_save(x, y, ids, oz_t, speed, target_folder, bad_ch = None, verbos
     if bad_ch is not None:
         for i, m in enumerate(masks):
             path = paths[i]
-            save_xyidst(x[m], y[m], ids[m], oz_t[m], speed[m], path, bad_ch=bad_ch[m], verbose=verbose)
+            save_extracted_data(x[m], y[m], ids[m], oz_t[m], speed[m], path, bad_ch=bad_ch[m], verbose=verbose)
 
     else:
         for i, m in enumerate(masks):
             path = paths[i]
-            save_xyidst(x[m], y[m], ids[m], oz_t[m], speed[m], path, verbose=verbose)
+            save_extracted_data(x[m], y[m], ids[m], oz_t[m], speed[m], path, verbose=verbose)
 
 
 if __name__ == "__main__":
@@ -219,7 +219,7 @@ if __name__ == "__main__":
 
     start_t = perf_counter()
     for i in range(N):
-        save_xyidst(x, y, ids, erp_t, speed, folder)
+        save_extracted_data(x, y, ids, erp_t, speed, folder)
 
     end_t = perf_counter()
 
