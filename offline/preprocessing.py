@@ -215,21 +215,16 @@ def preprocess(raw_eeg_data, sampling_freq, notch_centre_freq, notch_sharpness, 
 
 
 def resample(eeg_data, peak_mask, file_ids, peak_samples, speed, bad_chs):
-    """
-        This doesn't do resampling! This function compares the amount of negative and positive peaks and just removes random
-        negative peaks from the dataset until there's an equal amount of positive and negative peaks. Why??
-        TODO: Find out why this is here and necessary.
-    """
-    positive_peaks_mask = peak_mask == 1
-    negative_peaks_mask = peak_mask == 0
-    num_positive_peaks = np.sum(positive_peaks_mask)
-    num_negative_peaks = np.sum(negative_peaks_mask)
+    peaks_mask = (peak_mask == 1)
+    no_peaks_mask = (peak_mask == 0)
+    num_peaks = np.sum(peaks_mask)
+    num_no_peaks = np.sum(no_peaks_mask)
 
-    peak_number_difference = num_negative_peaks - num_positive_peaks
+    peak_number_difference = num_no_peaks - num_peaks
     if peak_number_difference > 0:
         rng = np.random.default_rng()
-        negative_peaks_idx = np.nonzero(negative_peaks_mask)
-        drop_idx = rng.choice(negative_peaks_idx[0], size=peak_number_difference, replace=False)
+        no_peaks_idx = np.nonzero(num_no_peaks)
+        drop_idx = rng.choice(no_peaks_idx[0], size=peak_number_difference, replace=False)
         eeg_data = np.delete(eeg_data, drop_idx, axis=0)
         peak_mask = np.delete(peak_mask, drop_idx, axis=0)
         file_ids = np.delete(file_ids, drop_idx, axis=0)

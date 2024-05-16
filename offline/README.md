@@ -1,7 +1,7 @@
 # How to run?
 If you want to just blindly run everything, you need to:
 - `python copy_data.py`
-- `python data_finder_emanuel` (this needs renaming and will be renamed)
+- `python raw_file_parser.py` (this needs renaming and will be renamed)
 - `python preprocessing.py`
 - `python Transformer.py`
 - `python AgeClassifier.py`
