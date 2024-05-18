@@ -1,9 +1,9 @@
 import os
 import shutil
 import numpy as np
-from data_finder_whole_trial_prec import get_timestamps_evt, get_timestamps_raw
 from tqdm import tqdm
 from threading import Thread
+import mne
 
 error_codes = {
     0: "Couldn't read stm- events from event file",
@@ -14,6 +14,63 @@ error_codes = {
     5: "Not valid due to timing differences",
     6: "Validated by comparing timing",
 }
+
+def get_timestamps_evt(fname, sfreq, event="Oz"):
+    """get timestamps as sample number from .evt file"""
+    """
+        only used by copy_data
+    """
+    inputfile = open(fname, "r")
+    timestamps = []
+
+    for index, line in enumerate(inputfile):
+        if index == 0:
+            continue
+        if event.lower() in line.lower():
+            chunks = line.split(" ")
+            try:
+                tmu = int(chunks[0])
+            except ValueError:
+                chunks = line.split("\t")
+                try:
+                    tmu = int(chunks[0])
+                except ValueError:
+                    print(f"{fname}: valueerror: {chunks[0]} can not be converted to int")
+                    continue
+
+            t = int(tmu * sfreq / 1e6)
+
+            timestamps.append(t)
+
+    if not timestamps:
+        return None
+
+    return np.asarray(timestamps)
+
+
+def get_timestamps_raw(fname, event="stm-"):
+    """get timestamps as sample number from .raw file, returned as numpy array"""
+    """
+        only used by copy_data
+    """
+    triggers = ["stm+"]
+
+    try:
+        egi = mne.io.read_raw_egi(fname, exclude=triggers, verbose="WARNING")
+    except:
+        return None, 0
+
+    ch_names_idx = {}
+    for i, ch_name in enumerate(egi.ch_names):
+        ch_names_idx[ch_name] = i
+
+    _coll_events = egi.get_data(picks=[ch_names_idx[event]])
+    coll_events = _coll_events.astype(int)
+    coll_mask = coll_events != 0
+    coll_sample = np.where(coll_mask)[1]
+    sfreq = egi.info["sfreq"]
+    return coll_sample, sfreq
+
 
 
 def validate_files(raw_f, raw_e, raw_dict, parent_folder):
@@ -135,7 +192,7 @@ if __name__ == "__main__":
     for age in ages:
         sort_key = "younger than" if age == "lessthan7" else "older than"
 
-        babies_file = os.path.dirname(__file__) + "/data/" + age + "/baby_files.txt"
+        babies_file = (os.path.dirname(__file__) or '.') + "/data/" + age + "/baby_files.txt"
         fnames_include = []
         with open(babies_file, "r") as f:
             lines = f.readlines()
@@ -145,9 +202,12 @@ if __name__ == "__main__":
 
         print(fnames_include)
 
-
-        root = "T:/Analysis/EEG/Looming/Silje-Adelen/3. BCI Annotation (Silje-Adelen)/1. Infant VEP Annotations/1 )Annotated_Silje"
-        target_folder = os.path.dirname(__file__) + "/data/" + age + "/raw/"
+        if os.name == 'posix':
+            root = '/run/user/1000/gvfs/smb-share:server=felles.ansatt.ntnu.no,share=ntnu/su/ips/nullab/'
+        else:
+            root = 'T:/'
+        root += "Analysis/EEG/Looming/Silje-Adelen/3. BCI Annotation (Silje-Adelen)/1. Infant VEP Annotations/1 )Annotated_Silje"
+        target_folder = (os.path.dirname(__file__) or '.') + "/data/" + age + "/raw/"
         if not os.path.isdir(target_folder):
             os.makedirs(target_folder)
         threads = []
