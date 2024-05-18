@@ -1089,7 +1089,7 @@ class TimeFreqTimefreqPowerFeatureExtractor(FeatureExtractor):
         return self.transform(x, bad_ch)[0]
 
     def extract_features(self, eeg_data, bad_channel_mask):
-        return time_freq_timefreq_power_features(
+        return extract_time_freq_timefreq_power_features(
             eeg_data,
             bad_channel_mask,
             self.feature_channels_mask,
