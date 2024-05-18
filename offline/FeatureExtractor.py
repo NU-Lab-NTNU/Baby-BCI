@@ -2,6 +2,7 @@ import numpy as np
 from scipy import signal, stats
 from sklearn.cluster import KMeans
 from datetime import date
+import json
 
 if __name__ == "__main__":
     from mne_connectivity import spectral_connectivity_time
@@ -16,39 +17,61 @@ SPEED_KEYS = ["fast", "medium", "slow"]
 DATA_FOLDER = "data/"
 MODEL = "expandedemanuel"
 
+LOW_THETA_LIMIT = 3.0
+HIGH_THETA_LIMIT = 7.0
+EPSILON = 1e-10
+SAMPLING_FREQUENCY = 500
+BABY_HD_EEG_NUM_CHANNELS = 128
+
+MIN_REFERENCE_CHANNEL_NUM = 2
+MIN_FEATURE_CHANNEL_NUM = 5
+
+MILLIS_TO_SECONDS = 1000
+
+
 def find_zero_crossings(x_erp):
     sign = np.sign(x_erp)
     zero_crossings = np.zeros(x_erp.shape[0])
     for i in range(sign.shape[0]):
-        prev = sign[i,0]
+        previous_sample_sign = sign[i, 0]
         for j in range(sign.shape[1]):
-            val = sign[i,j]
-            if val == 0:
+            current_sample_sign = sign[i, j]
+            if current_sample_sign == 0:  # neutral, exactly 0, no sign change
                 continue
 
-            if val != prev:
-                prev = val
-                zero_crossings[i] = zero_crossings[i] + 1
+            if current_sample_sign != previous_sample_sign:
+                previous_sample_sign = current_sample_sign
+                zero_crossings[i] += 1
 
     return zero_crossings
+
 
 def find_peak(x_erp):
     amplitude = []
     latency = []
-    dur = []
-    prom = []
+    duration = []
+    prominence = []
     for i in range(x_erp.shape[0]):
         peaks, properties = signal.find_peaks(x_erp[i], width=0.1, prominence=1)
-        prominence = properties["prominences"]
-        most_prominent = np.argmax(prominence)
-        amplitude.append(x_erp[i,peaks[most_prominent]])
+        current_prominence = properties["prominences"]
+        most_prominent = np.argmax(current_prominence)
+        amplitude.append(x_erp[i, peaks[most_prominent]])
         latency.append(most_prominent)
-        dur.append(properties["right_ips"][most_prominent] - properties["left_ips"][most_prominent])
-        prom.append(prominence[most_prominent])            
+        duration.append(
+            properties["right_ips"][most_prominent]
+            - properties["left_ips"][most_prominent]
+        )
+        prominence.append(current_prominence[most_prominent])
 
-    return np.array(amplitude), np.array(latency), np.array(dur), np.array(prom)
+    return (
+        np.array(amplitude),
+        np.array(latency),
+        np.array(duration),
+        np.array(prominence),
+    )
 
-def time_domain_features(x_erp):
+
+def extract_time_domain_features(x_erp):
     rms = np.sqrt(np.mean(np.power(x_erp, 2), axis=1))
     median = np.median(x_erp, axis=1)
     std = np.std(x_erp, axis=1)
@@ -56,56 +79,123 @@ def time_domain_features(x_erp):
     maximum = np.amax(x_erp, axis=1)
     minimum = np.amin(x_erp, axis=1)
 
-    p_amplitude, p_latency, p_dur, p_prom = find_peak(x_erp)
-    n_amplitude, n_latency, n_dur, n_prom = find_peak(-x_erp)
-
+    pos_peak_amplitude, pos_peak_latency, pos_peak_dur, pos_peak_prominence = find_peak(
+        x_erp
+    )
+    neg_peak_amplitude, neg_peak_latency, neg_peak_dur, neg_peak_prominence = find_peak(
+        -x_erp
+    )
 
     summ = np.sum(x_erp, axis=1)
     cumsum = np.cumsum(x_erp, axis=1)
-    frac_area_latency = np.argmin(np.abs((cumsum.T - summ / 2).T), axis=1)
-    frac_area_duration = np.argmin(np.abs((cumsum.T - summ * 4 /3).T), axis=1) - np.argmin(np.abs((cumsum.T - summ / 4)).T, axis=1)
+    fractional_area_latency = np.argmin(np.abs((cumsum.T - summ / 2).T), axis=1)
+    fractional_area_duration = np.argmin(
+        np.abs((cumsum.T - summ * 4 / 3).T), axis=1
+    ) - np.argmin(np.abs((cumsum.T - summ / 4)).T, axis=1)
 
     zero_crossings = find_zero_crossings(x_erp)
 
     z_score = (maximum - minimum) / std
 
-    hjorth_mob = np.sqrt(np.var(np.diff(x_erp, 1, axis=1), axis=1) / var)
-    hjorth_act = np.power(var, 2)
+    hjorth_mobility = np.sqrt(np.var(np.diff(x_erp, 1, axis=1), axis=1) / var)
+    hjorth_activity = np.power(var, 2)
 
-    n_t_erp = x_erp.shape[1]
-    petrosian_frac_dim = np.log10(n_t_erp) / (np.log10(n_t_erp) + np.log10(n_t_erp / (n_t_erp + 0.4 * zero_crossings)))
+    num_samples = x_erp.shape[1]
+    petrosian_fractal_dim = np.log10(num_samples) / (
+        np.log10(num_samples)
+        + np.log10(num_samples / (num_samples + 0.4 * zero_crossings))
+    )
 
-    x_t_f = np.stack([rms, median, std, var, maximum, minimum, p_amplitude, p_latency, p_dur, p_prom, n_amplitude, n_latency, n_dur, n_prom, frac_area_latency, frac_area_duration, zero_crossings, z_score, hjorth_mob, hjorth_act, petrosian_frac_dim], axis=1)
-    x_t_f_names = np.array(["rms", "median", "std", "var", "maximum", "minimum", "p_amplitude", "p_latency", "p_dur", "p_prom", "n_amplitude", "n_latency", "n_dur", "n_prom", "frac_area_latency", "frac_area_duration", "zero_crossings", "z_score", "hjorth_mob", "hjorth_act", "petrosian_frac_dim"])
-    return x_t_f, x_t_f_names
+    time_features = np.stack(
+        [
+            rms,
+            median,
+            std,
+            var,
+            maximum,
+            minimum,
+            pos_peak_amplitude,
+            pos_peak_latency,
+            pos_peak_dur,
+            pos_peak_prominence,
+            neg_peak_amplitude,
+            neg_peak_latency,
+            neg_peak_dur,
+            neg_peak_prominence,
+            fractional_area_latency,
+            fractional_area_duration,
+            zero_crossings,
+            z_score,
+            hjorth_mobility,
+            hjorth_activity,
+            petrosian_fractal_dim,
+        ],
+        axis=1,
+    )
+    time_feature_names = np.array(
+        [
+            "rms",
+            "median",
+            "std",
+            "var",
+            "maximum",
+            "minimum",
+            "pos_peak_amplitude",
+            "pos_peak_latency",
+            "pos_peak_dur",
+            "pos_peak_prom",
+            "neg_peak_amplitude",
+            "neg_peak_latency",
+            "neg_peak_dur",
+            "neg_peak_prom",
+            "fractional_area_latency",
+            "fractional_area_duration",
+            "zero_crossings",
+            "z_score",
+            "hjorth_mobillity",
+            "hjorth_activity",
+            "petrosian_fractal_dim",
+        ]
+    )
+    return time_features, time_feature_names
 
-def get_instantaneous_phase_diff(x, x_ref, freq):
-    fs = 500.0
-    sos = signal.butter(4, [3.0, 7.0], btype="bandpass", output="sos", fs=fs)
-    x = signal.sosfiltfilt(sos, x, axis=1)
-    x_ref = signal.sosfiltfilt(sos, x_ref, axis=1)
 
+def get_instantaneous_phase_diff(feature_channels_data, reference_channels_data, freq):
+    sos = signal.butter(
+        4,
+        [LOW_THETA_LIMIT, HIGH_THETA_LIMIT],
+        btype="bandpass",
+        output="sos",
+        fs=SAMPLING_FREQUENCY,
+    )
+    theta_feature_data = signal.sosfiltfilt(sos, feature_channels_data, axis=1)
+    theta_reference_data = signal.sosfiltfilt(sos, reference_channels_data, axis=1)
+
+    freq_feature_data = np.fft.fft(theta_feature_data, axis=1)
+    analytic_feature_data = hilbert(freq_feature_data, freq)
+    complex_feature_data = theta_feature_data + 1j * analytic_feature_data
+    feature_phase = np.angle(complex_feature_data)
+
+    freq_reference_data = np.fft.fft(theta_reference_data, axis=1)
+    analytic_reference_data = hilbert(freq_reference_data, freq)
+    complex_reference_data = theta_reference_data + 1j * analytic_reference_data
+    reference_phase = np.angle(complex_reference_data)
+
+    return feature_phase - reference_phase
+
+
+def extract_freq_domain_features(x, x_ref):
     x_f = np.fft.fft(x, axis=1)
-    x_ht = hilbert(x_f, freq)
-    x_complex = x + 1j * x_ht
-    x_phase = np.angle(x_complex)
-
-    x_f_ref = np.fft.fft(x_ref, axis=1)
-    x_ht_ref = hilbert(x_f_ref, freq)
-    x_complex_ref = x_ref + 1j * x_ht_ref
-    x_phase_ref = np.angle(x_complex_ref)
-
-    return x_phase - x_phase_ref
-
-def freq_domain_features(x, x_ref):
-    x_f = np.fft.fft(x, axis=1)
-    freq = np.fft.fftfreq(x_f.shape[1], 1/500.0)
+    freq = np.fft.fftfreq(x_f.shape[1], 1 / SAMPLING_FREQUENCY)
 
     f_low = 3
     f_high = 6
 
-    mask = np.logical_or(np.logical_and(freq >= f_low, freq <= f_high), np.logical_and(freq <= -f_low, freq >= -f_high))
-    x_f_band = x_f[:,mask]
+    mask = np.logical_or(
+        np.logical_and(freq >= f_low, freq <= f_high),
+        np.logical_and(freq <= -f_low, freq >= -f_high),
+    )
+    x_f_band = x_f[:, mask]
     mag_band = np.absolute(x_f_band)
     bandpower = np.log10(np.mean(np.power(mag_band, 2), axis=1))
 
@@ -118,100 +208,125 @@ def freq_domain_features(x, x_ref):
     x_f_f_names = np.array(["bandpower", "mean_phase_d", "std_phase_d"])
     return x_f_f, x_f_f_names
 
-def time_freq_domain_features(x_erp):
-    Sxx_lst = []
-    for i in range(x_erp.shape[0]):
-        _, _, Sxx = signal.spectrogram(x_erp[i], fs=500.0, nperseg=32)
-        Sxx_lst.append(Sxx)
 
-    for i, Sxx in enumerate(Sxx_lst):
-        print(f"Spectrogram {i} shape: {Sxx.shape}")
+def extract_timefreq_domain_features(peak_eeg_data):
+    power_spectra = []
+    for i in range(peak_eeg_data.shape[0]):
+        _, _, power_spectrum = signal.spectrogram(
+            peak_eeg_data[i], fs=SAMPLING_FREQUENCY, nperseg=BABY_HD_EEG_NUM_CHANNELS / 4
+        )
+        power_spectra.append(power_spectrum)
 
-    spectr = np.stack(Sxx_lst, axis=0)
+    for i, power_spectrum in enumerate(power_spectra):
+        print(f"Spectrogram {i} shape: {power_spectrum.shape}")
 
-    mean_spectral_entropy = np.mean(stats.entropy(spectr+1e-10, axis=1), axis=1)
-    mean_instantaneous_freq = np.mean(np.argmax(spectr, axis=1), axis=1)
+    power_spectra = np.stack(power_spectra, axis=0)
 
-    x_tf_f = np.stack([mean_spectral_entropy, mean_instantaneous_freq], axis=1)
-    x_tf_f_names = np.array(["mean_spectral_entropy", "mean_instantaneous_freq"])
-    return x_tf_f, x_tf_f_names
+    mean_spectral_entropy = np.mean(
+        stats.entropy(power_spectra + EPSILON, axis=1), axis=1
+    )
+    mean_instantaneous_freq = np.mean(np.argmax(power_spectra, axis=1), axis=1)
 
-def spectrogram_features(x):
-    Sxx_lst = []
-    for i in range(x.shape[0]):
-        f_sxx, t_sxx, Sxx = signal.spectrogram(x[i], fs=500.0, nperseg=128)
-        Sxx_lst.append(Sxx)
+    timefreq_features = np.stack([mean_spectral_entropy, mean_instantaneous_freq], axis=1)
+    timefreq_feature_names = np.array(
+        ["mean_spectral_entropy", "mean_instantaneous_freq"]
+    )
+    return timefreq_features, timefreq_feature_names
 
-    sxx_arr = np.array(Sxx_lst)
-    f_mask = f_sxx < 25
-    f_ = np.round(f_sxx[f_mask])
-    t_ = np.round(t_sxx*1000)
-    sxx_feat = sxx_arr[:, f_mask]
 
-    feat_list = []
-    feat_names = []
-    for i, f in enumerate(f_):
-        for j, t in enumerate(t_):
-            feat_list.append(sxx_feat[:,i,j])
-            feat_names.append(f"sxx_f{f}_t{t}")
+def extract_power_features(eeg_data):
+    power_spectra = []
+    for channel in range(eeg_data.shape[0]):
+        spectrogram_freq, spectrogram_time, power_spectrum = signal.spectrogram(
+            eeg_data[channel], fs=SAMPLING_FREQUENCY, nperseg=BABY_HD_EEG_NUM_CHANNELS
+        )
+        power_spectra.append(power_spectrum)
 
-    x_sxx_f = np.stack(feat_list, axis=1)
-    x_sxx_f_names = np.array(feat_names)
-    return x_sxx_f, x_sxx_f_names
+    power_spectra = np.array(power_spectra)
+    freq_mask = spectrogram_freq < 25
+    feature_frequencies = np.round(spectrogram_freq[freq_mask])
+    times_in_seconds = np.round(spectrogram_time * MILLIS_TO_SECONDS)
+    power_features = power_spectra[:, freq_mask]
 
-def emanuel_features(x):
-    x_oz = np.nanmean(x[:,60:90], axis=1)
-    x_erp = x_oz[:,150:400]
-    x_ref = np.nanmean(x[:,40:50], axis=1)
+    power_feature_list = []
+    power_feature_names = []
+    for i, feature_freq in enumerate(feature_frequencies):
+        for j, time_in_seconds in enumerate(times_in_seconds):
+            power_feature_list.append(power_features[:, i, j])
+            power_feature_names.append(f"sxx_f{feature_freq}_t{time_in_seconds}")
 
-    x_t_f, x_t_f_names = time_domain_features(x_erp)
-    x_f_f, x_f_f_names = freq_domain_features(x_oz, x_ref)
-    x_tf_f, x_tf_f_names = time_freq_domain_features(x_erp)
+    power_feature_list = np.stack(power_feature_list, axis=1)
+    power_feature_names = np.array(power_feature_names)
+    return power_feature_list, power_feature_names
+
+
+def extract_time_freq_timefreq_features(eeg_data):
+    # Absolutely no clue as to where the magic numbers below are from
+    x_oz = np.nanmean(eeg_data[:, 60:90], axis=1)
+    x_erp = x_oz[:, 150:400]
+    x_ref = np.nanmean(eeg_data[:, 40:50], axis=1)
+
+    x_t_f, x_t_f_names = extract_time_domain_features(x_erp)
+    x_f_f, x_f_f_names = extract_freq_domain_features(x_oz, x_ref)
+    x_tf_f, x_tf_f_names = extract_timefreq_domain_features(x_erp)
 
     x_f = np.concatenate([x_t_f, x_f_f, x_tf_f], axis=1)
     x_f_names = np.concatenate([x_t_f_names, x_f_f_names, x_tf_f_names], axis=0)
 
     return x_f, x_f_names
 
-def expanded_emanuel_features(x, bad_chs, oz_mask, erp_mask, ref_mask):
-    ndim = len(x.shape)
+
+def extract_time_freq_timefreq_power_features(
+    eeg_data,
+    bad_channels_mask,
+    feature_channels_mask,
+    possible_samples_with_peak,
+    reference_channels_mask,
+):
+    ndim = len(eeg_data.shape)
     if not (ndim == 3 or ndim == 2):
         raise ValueError
 
     if ndim == 2:
-        x = np.reshape(x, (1, x.shape[0], x.shape[1]))
+        eeg_data = np.reshape(eeg_data, (1, eeg_data.shape[0], eeg_data.shape[1]))
 
-    """ x[bad_chs] = np.nan
-    if np.any(np.sum(bad_chs, axis=1) >= 10):
-        print(">= 8 bad channels") """
+    feature_channels_data = np.nanmean(eeg_data[:, feature_channels_mask], axis=1)
+    possible_waveform_with_peak = feature_channels_data[:, possible_samples_with_peak]
+    reference_channels_data = np.nanmean(eeg_data[:, reference_channels_mask], axis=1)
 
-    x_oz = np.nanmean(x[:,oz_mask], axis=1)
-    x_erp = x_oz[:,erp_mask]
-    x_ref = np.nanmean(x[:,ref_mask], axis=1)
+    time_domain_features, time_domain_features_names = extract_time_domain_features(
+        possible_waveform_with_peak
+    )
+    freq_domain_features, freq_domain_features_names = extract_freq_domain_features(
+        feature_channels_data, reference_channels_data
+    )
+    (
+        timefreq_domain_features,
+        timefreq_domain_features_names,
+    ) = extract_timefreq_domain_features(possible_waveform_with_peak)
+    power_features, power_features_names = extract_power_features(feature_channels_data)
 
-    """
-        Debug
-    """
-    
-    """
-    print(f"x_oz shape: {x_oz.shape}")
-    print(f"x_erp shape: {x_erp.shape}")
-    print(f"x_ref shape: {x_ref.shape}")
-    """
+    extracted_features = np.concatenate(
+        [
+            time_domain_features,
+            freq_domain_features,
+            timefreq_domain_features,
+            power_features,
+        ],
+        axis=1,
+    )
+    extracted_features_names = np.concatenate(
+        [
+            time_domain_features_names,
+            freq_domain_features_names,
+            timefreq_domain_features_names,
+            power_features_names,
+        ],
+        axis=0,
+    )
 
-    """
-        End debug
-    """
+    return extracted_features, extracted_features_names
 
-    x_t_f, x_t_f_names = time_domain_features(x_erp)
-    x_f_f, x_f_f_names = freq_domain_features(x_oz, x_ref)
-    x_tf_f, x_tf_f_names = time_freq_domain_features(x_erp)
-    x_sxx_f, x_sxx_f_names = spectrogram_features(x_oz)
-
-    x_f = np.concatenate([x_t_f, x_f_f, x_tf_f, x_sxx_f], axis=1)
-    x_f_names = np.concatenate([x_t_f_names, x_f_f_names, x_tf_f_names, x_sxx_f_names], axis=0)
-
-    return x_f, x_f_names
 
 def get_theta_band(x_t, fs):
     """
@@ -220,7 +335,9 @@ def get_theta_band(x_t, fs):
         x_t: x in time domain (n_channels, n_samples) or (n_trials, n_channels, n_samples)
         fs: sampling frequency of signal (float)
     """
-    return get_freq_band(x_t, 3.0, 7.0, fs)
+
+    return get_freq_band(x_t, LOW_THETA_LIMIT, HIGH_THETA_LIMIT, fs)
+
 
 def get_freq_band(x_t, f_low, f_high, fs):
     """
@@ -246,6 +363,7 @@ def get_freq_band(x_t, f_low, f_high, fs):
     else:
         raise ValueError(f"Error: x_t {x_t.shape} has wrong dimensions.")
 
+
 def get_fft_and_freq(x_t, fs):
     """
     Returns fast fourier transform and frequencies of time domain signal
@@ -262,54 +380,58 @@ def get_fft_and_freq(x_t, fs):
     else:
         raise ValueError(f"Error: x_t {x_t.shape} has wrong dimensions.")
 
-def hilbert(x_f, freq):
+
+def hilbert(freq_domain_eeg, freq):
     """
     Returns hilbert transform of frequency domain signal
     inputs:
         x_f: x in frequency domain (n_channels, n_samples) or (n_trials, n_channels, n_samples)
         freq: frequencies of frequency domain signal
     """
-    fac = -1j * np.sign(freq)
-    prod = np.multiply(x_f, fac)
+    phase_correction = -1j * np.sign(freq)
+    phase_corrected_eeg_freq = np.multiply(freq_domain_eeg, phase_correction)
 
-    if len(x_f.shape) == 2:
-        return np.fft.ifft(prod, axis=1)
+    if len(freq_domain_eeg.shape) == 2:
+        return np.fft.ifft(phase_corrected_eeg_freq, axis=1)
 
-    elif len(x_f.shape) == 3:
-        return np.fft.ifft(prod, axis=2)
+    elif len(freq_domain_eeg.shape) == 3:
+        return np.fft.ifft(phase_corrected_eeg_freq, axis=2)
 
     else:
-        raise ValueError(f"Error: x_f {x_f.shape} has wrong dimensions.")
+        raise ValueError(f"Error: x_f {freq_domain_eeg.shape} has wrong dimensions.")
 
-def get_magnitude_phase(x_t):
+
+def get_magnitude_phase(time_domain_eeg):
     """
     Uses hilbert transform to get instantaneous magnitude (of envelope) and phase of time domain signal
     """
-    if len(x_t.shape) == 2:
-        x_a = signal.hilbert(x_t, axis=1)
+    if len(time_domain_eeg.shape) == 2:
+        analytic_eeg = signal.hilbert(time_domain_eeg, axis=1)
 
-    elif len(x_t.shape) == 3:
-        x_a = signal.hilbert(x_t, axis=2)
+    elif len(time_domain_eeg.shape) == 3:
+        analytic_eeg = signal.hilbert(time_domain_eeg, axis=2)
 
     else:
-        raise ValueError(f"Error: x_t {x_t.shape} has wrong dimensions.")
+        raise ValueError(f"Error: x_t {time_domain_eeg.shape} has wrong dimensions.")
 
-    env = np.absolute(x_a)
-    phase = np.angle(x_a)
+    envelope = np.absolute(analytic_eeg)
+    phase = np.angle(analytic_eeg)
 
-    return env, phase
+    return envelope, phase
 
-def normalize(x):
-    n_dim = len(x.shape)
+
+def normalize(time_domain_eeg):
+    n_dim = len(time_domain_eeg.shape)
     if not (n_dim == 2 or n_dim == 3):
-        raise ValueError(f"x {x.shape} has wrong dimensions.")
+        raise ValueError(f"x {time_domain_eeg.shape} has wrong dimensions.")
 
     time_axis = n_dim - 1
 
-    mu_x = np.mean(x, axis=time_axis)
-    sigma_x = np.std(x, axis=time_axis)
-    x = ((x.T - mu_x.T) / sigma_x.T).T
-    return x
+    eeg_mean = np.mean(time_domain_eeg, axis=time_axis)
+    eeg_std = np.std(time_domain_eeg, axis=time_axis)
+    normalised_eeg = ((time_domain_eeg.T - eeg_mean.T) / eeg_std.T).T
+    return normalised_eeg
+
 
 def xcorr(x, kernels):
     n_dim = len(x.shape)
@@ -330,8 +452,8 @@ def xcorr(x, kernels):
                 ker = ker_c[j]
                 corr = signal.correlate(x_c, ker, mode="same")
                 lags = signal.correlation_lags(len(x_c), len(ker), mode="same")
-                delays[i,j] = lags[np.argmax(corr)]
-                peaks[i,j] = np.amax(corr)
+                delays[i, j] = lags[np.argmax(corr)]
+                peaks[i, j] = np.amax(corr)
 
     else:
         n_trials = x.shape[0]
@@ -351,13 +473,13 @@ def xcorr(x, kernels):
                     ker = ker_c[j]
                     corr = signal.correlate(x_c, ker, mode="same")
                     lags = signal.correlation_lags(len(x_c), len(ker), mode="same")
-                    delays[t,i,j] = lags[np.argmax(corr)]
-                    peaks[t,i,j] = np.amax(corr)
+                    delays[t, i, j] = lags[np.argmax(corr)]
+                    peaks[t, i, j] = np.amax(corr)
 
     return delays, peaks
 
 
-class Transformer:
+class FeatureExtractor:
     """
     Template for transformers. They should have:
         - A transform method. Should have a bad_ch argument, boolean numpy array (n_channels).
@@ -365,8 +487,8 @@ class Transformer:
     """
 
     def __init__(self) -> None:
-        self.fs = 500.0
-        self.N_ch = 128
+        self.fs = SAMPLING_FREQUENCY
+        self.N_ch = BABY_HD_EEG_NUM_CHANNELS
         self.fitted = False
 
         self.name = "BaseTransformer"
@@ -393,7 +515,7 @@ class Transformer:
         pass
 
 
-class TransformerKMeans(Transformer):
+class KMeansFeatureExtractor(FeatureExtractor):
     def __init__(self) -> None:
         # Initialize parent class
         super().__init__()
@@ -581,9 +703,7 @@ class TransformerKMeans(Transformer):
         x_t_feat = self.get_time_domain_features(x_spat)
         n_dim = len(x_spat.shape)
         if n_dim == 3:
-            x_spat_time = np.zeros(
-                (x.shape[0], self.n_clusters_ch, self.n_clusters_time)
-            )
+            x_spat_time = np.zeros((x.shape[0], self.n_clusters_ch, self.n_clusters_time))
             for i in range(self.n_clusters_ch):
                 x_spat_time[:, i, :] = self.kmeans_time[i].transform(x_spat[:, i, :])
             x_km_feat = self.feature_extract(x_spat_time)
@@ -599,7 +719,7 @@ class TransformerKMeans(Transformer):
         return x_feat
 
 
-class TransformerKMeansKernel(Transformer):
+class KMeansKernelFeatureExtractor(FeatureExtractor):
     def __init__(self) -> None:
         # Initialize parent class
         super().__init__()
@@ -700,14 +820,21 @@ class TransformerKMeansKernel(Transformer):
         n_s = x_spat_pos.shape[2]
 
         erp_t_pos = n_s + np.round(erp_t[pos_mask] / 2).astype(int)
-        good = np.logical_and(erp_t_pos - self.kernel_len >= 0, erp_t_pos + self.kernel_len < n_s)
+        good = np.logical_and(
+            erp_t_pos - self.kernel_len >= 0, erp_t_pos + self.kernel_len < n_s
+        )
         x_spat_pos = x_spat_pos[good]
         erp_t_pos = erp_t_pos[good]
-        x_erp_int = np.zeros((x_spat_pos.shape[0], x_spat_pos.shape[1], 2 * self.kernel_len))
-
+        x_erp_int = np.zeros(
+            (x_spat_pos.shape[0], x_spat_pos.shape[1], 2 * self.kernel_len)
+        )
 
         for i in range(x_spat_pos.shape[0]):
-            x_erp_int[i] = x_spat_pos[i, :, (erp_t_pos[i] - self.kernel_len):(erp_t_pos[i] + self.kernel_len)]
+            x_erp_int[i] = x_spat_pos[
+                i,
+                :,
+                (erp_t_pos[i] - self.kernel_len) : (erp_t_pos[i] + self.kernel_len),
+            ]
 
         kmeans = KMeans(self.n_kernels, n_init=self.n_init)
         for i in range(self.n_clusters_ch):
@@ -754,7 +881,6 @@ class TransformerKMeansKernel(Transformer):
 
         delays, peaks = xcorr(x_spat, self.kernels)
         x_ker_feat = np.concatenate([delays, peaks], axis=2)
-
 
         self.fitted = True
         x_k_feat = self.feature_extract(x_ker_feat)
@@ -806,7 +932,7 @@ class TransformerKMeansKernel(Transformer):
         x_t_feat = self.get_time_domain_features(x_spat)
         n_dim = len(x_spat.shape)
         delays, peaks = xcorr(x_spat, self.kernels)
-        x_ker_feat = np.concatenate([delays, peaks], axis=n_dim-1)
+        x_ker_feat = np.concatenate([delays, peaks], axis=n_dim - 1)
 
         x_k_feat = self.feature_extract(x_ker_feat)
 
@@ -814,7 +940,7 @@ class TransformerKMeansKernel(Transformer):
         return x_feat
 
 
-class TransformerTheta(Transformer):
+class ThetaBandFeatureExtractor(FeatureExtractor):
     def __init__(self) -> None:
         super().__init__()
 
@@ -854,13 +980,10 @@ class TransformerTheta(Transformer):
         time_axis = n_dim - 1
 
         x_f = np.fft.fft(x, axis=time_axis)
-        freqs = np.fft.fftfreq(x.shape[time_axis], 1/self.fs)
+        freqs = np.fft.fftfreq(x.shape[time_axis], 1 / self.fs)
         x_hilbert = hilbert(x_f, freqs)
 
         # TODO: Get phase features
-
-
-
 
         maximum = np.amax(x, axis=time_axis)
         minimum = np.amin(x, axis=time_axis)
@@ -892,88 +1015,116 @@ class TransformerTheta(Transformer):
         n_dim = len(x.shape)
         croplen = 10
         if n_dim == 2:
-            x = x[:,croplen:-croplen]
+            x = x[:, croplen:-croplen]
         if n_dim == 3:
-            x = x[:,:,croplen:-croplen]
+            x = x[:, :, croplen:-croplen]
         x_theta = get_theta_band(x, self.fs)
         x_spat_theta = self.spatial_filter_transform(x_theta, bad_ch)
         x_feat = self.feature_extract(x_spat_theta)
         return x_feat
 
 
-class TransformerExpandedEmanuel(Transformer):
-    def __init__(self, age, n_ch=128, n_t=500) -> None:
+class TimeFreqTimefreqPowerFeatureExtractor(FeatureExtractor):
+    def __init__(
+        self, age, num_channels=BABY_HD_EEG_NUM_CHANNELS, samples_per_second=500
+    ) -> None:
         super().__init__()
         self.name = "TransformerExpandedEmanuel"
-        self.f_names = None
+        self.feature_names = []
 
-        self.oz_mask = np.zeros(n_ch, dtype=bool)
-        ch_include = np.array([66, 67, 71, 72, 73, 76, 77, 78, 84, 85]) - 1
-        for i in ch_include:
-            self.oz_mask[i] = True
+        self.feature_channels_mask = np.zeros(num_channels, dtype=bool)
+        # Why only these channels?
+        channels_to_include = np.array([66, 67, 71, 72, 73, 76, 77, 78, 84, 85]) - 1
+        for channel in channels_to_include:
+            self.feature_channels_mask[channel] = True
 
-        self.ref_mask = np.zeros(n_ch, dtype=bool)
-        for i in range(20, 50):
-            self.ref_mask[i] = True
+        # Channels 21 to 50 are for some reason used as reference signals. Why?
+        self.reference_channels_mask = np.zeros(num_channels, dtype=bool)
+        for reference_channel in range(20, 50):
+            self.reference_channels_mask[reference_channel] = True
 
-        self.erp_mask = np.zeros(n_t, dtype=bool)
-        if n_t == 750:
+        # Why?
+        self.possible_samples_with_peak = np.zeros(samples_per_second, dtype=bool)
+        if samples_per_second == 750:
             if age == "greater":
-                for i in range(n_t-400, n_t-50):
-                    self.erp_mask[i] = True
+                for i in range(samples_per_second - 400, samples_per_second - 50):
+                    self.possible_samples_with_peak[i] = True
 
             else:
-                for i in range(n_t-600, n_t-100):
-                    self.erp_mask[i] = True
+                for i in range(samples_per_second - 600, samples_per_second - 100):
+                    self.possible_samples_with_peak[i] = True
 
-        elif n_t == 500:
+        elif samples_per_second == 500:
             if age == "greater":
-                for i in range(n_t-400, n_t-50):
-                    self.erp_mask[i] = True
+                for sample in range(samples_per_second - 400, samples_per_second - 50):
+                    self.possible_samples_with_peak[sample] = True
 
             else:
-                for i in range(n_t-500, n_t-100):
-                    self.erp_mask[i] = True
+                for sample in range(samples_per_second - 500, samples_per_second - 100):
+                    self.possible_samples_with_peak[sample] = True
 
-    def fit(self, x, _, erp_t, bad_ch):
-        if len(x.shape) != 3:
+    def fit(self, eeg_data, _, erp_t, bad_channel_mask):
+        if len(eeg_data.shape) != 3:
             raise ValueError
 
-        self.input_shape = (x.shape[1], x.shape[2])
+        self.input_shape = (eeg_data.shape[1], eeg_data.shape[2])
         self.fitted = True
 
-        tup = expanded_emanuel_features(x, bad_ch, self.oz_mask, self.erp_mask, self.ref_mask)
-        x_f = tup[0]
-        self.f_names = tup[1]
+        extracted_features, feature_names = extract_time_freq_timefreq_power_features(
+            eeg_data,
+            bad_channel_mask,
+            self.feature_channels_mask,
+            self.possible_samples_with_peak,
+            self.reference_channels_mask,
+        )
+
+        self.feature_names = feature_names
         self.output_shape = (
             1,
-            x_f.shape[1],
+            extracted_features.shape[1],
         )
 
     def fit_transform(self, x, y, erp_t, bad_ch):
         self.fit(x, y, erp_t, bad_ch)
         return self.transform(x, bad_ch)[0]
 
-    def transform(self, x, bad_ch):
-        return expanded_emanuel_features(x, bad_ch, self.oz_mask, self.erp_mask, self.ref_mask)
+    def extract_features(self, eeg_data, bad_channel_mask):
+        return time_freq_timefreq_power_features(
+            eeg_data,
+            bad_channel_mask,
+            self.feature_channels_mask,
+            self.possible_samples_with_peak,
+            self.reference_channels_mask,
+        )
 
-    def check_enough_good_ch(self, bad_ch):
-        n_dim = len(bad_ch.shape)
+    def check_enough_good_ch(self, bad_channel_mask):
+        n_dim = len(bad_channel_mask.shape)
         if not (n_dim == 1):
-            raise ValueError(f"bad_ch {bad_ch.shape} has wrong dimensions.")
+            raise ValueError(f"bad_ch {bad_channel_mask.shape} has wrong dimensions.")
 
-        good_and_oz = np.logical_and(self.oz_mask, np.logical_not(bad_ch))
-        if np.sum(good_and_oz) < 5:
+        good_feature_channels_mask = np.logical_and(
+            self.feature_channels_mask, np.logical_not(bad_channel_mask)
+        )
+        if np.sum(good_feature_channels_mask) < MIN_FEATURE_CHANNEL_NUM:
             return False
 
-        good_and_ref = np.logical_and(self.ref_mask, np.logical_not(bad_ch))
-        if np.sum(good_and_ref) < 2:
+        good_reference_channels_mask = np.logical_and(
+            self.ref_mask, np.logical_not(bad_channel_mask)
+        )
+        if np.sum(good_reference_channels_mask) < MIN_REFERENCE_CHANNEL_NUM:
             return False
 
         return True
 
+    def feature_names_to_file(self, filepath):
+        feature_names_json = {
+            str(idx): feature_name for idx, feature_name in self.feature_names
+        }
+        with open(filepath, "w") as feature_names_file:
+            json.dump(feature_names_json)
 
-class TransformerTimeBins(Transformer):
+
+class TimeBinsFeatureExtractor(FeatureExtractor):
     def __init__(self) -> None:
         super().__init__()
 
@@ -1068,13 +1219,24 @@ class TransformerTimeBins(Transformer):
 
         time_axis = n_dim - 1
         if x.shape[time_axis] % self.n_time_bins:
-            raise ValueError(f"Number of samples ({x.shape[time_axis]}) not divisible by number of time bins ({self.n_time_bins})")
+            raise ValueError(
+                f"Number of samples ({x.shape[time_axis]}) not divisible by number of time bins ({self.n_time_bins})"
+            )
 
         if n_dim == 2:
-            x_tb = x.reshape((x.shape[0], self.n_time_bins, x.shape[time_axis] // self.n_time_bins))
+            x_tb = x.reshape(
+                (x.shape[0], self.n_time_bins, x.shape[time_axis] // self.n_time_bins)
+            )
 
         else:
-            x_tb = x.reshape((x.shape[0], x.shape[1], self.n_time_bins, x.shape[time_axis] // self.n_time_bins))
+            x_tb = x.reshape(
+                (
+                    x.shape[0],
+                    x.shape[1],
+                    self.n_time_bins,
+                    x.shape[time_axis] // self.n_time_bins,
+                )
+            )
 
         small_time_axis = n_dim
         big_time_axis = time_axis
@@ -1088,12 +1250,11 @@ class TransformerTimeBins(Transformer):
         t_tb = np.zeros((x_tb.shape))
         if n_dim == 2:
             for i in range(N_st):
-                t_tb[:,:,i] = t[i]
+                t_tb[:, :, i] = t[i]
 
         else:
             for i in range(N_st):
-                t_tb[:,:,:,i] = t[i]
-
+                t_tb[:, :, :, i] = t[i]
 
         t_m = np.mean(t_tb, axis=small_time_axis)
         t_demean = (t_tb.T - t_m.T).T
@@ -1132,7 +1293,9 @@ class TransformerTimeBins(Transformer):
 
         time_axis = n_dim - 1
         if x.shape[time_axis] % self.n_time_bins:
-            raise ValueError(f"Number of samples ({x.shape[time_axis]}) not divisible by number of time bins ({self.n_time_bins})")
+            raise ValueError(
+                f"Number of samples ({x.shape[time_axis]}) not divisible by number of time bins ({self.n_time_bins})"
+            )
 
         x_norm = normalize(x)
 
@@ -1157,7 +1320,7 @@ class TransformerTimeBins(Transformer):
         return x_f
 
 
-class TransformerConnectivityDummy(Transformer):
+class ConnectivityDummyFeatureExtractor(FeatureExtractor):
     def __init__(self) -> None:
         super().__init__()
 
@@ -1167,14 +1330,14 @@ class TransformerConnectivityDummy(Transformer):
 
         # no mean over freq
         fmin = 0.5
-        #fmax = 1.38
+        # fmax = 1.38
         fmax = 20
         fnum = 20
         self.freqs = np.logspace(*np.log10([fmin, fmax]), num=fnum)
         print(self.freqs)
         # Just PLV
-        #self.methods = ['coh', 'plv', 'ciplv', 'pli', 'wpli']
-        self.methods = ['plv', 'coh']
+        # self.methods = ['coh', 'plv', 'ciplv', 'pli', 'wpli']
+        self.methods = ["plv", "coh"]
         self.sfreq = 500.0
 
     def fit_transform(self, x, _, erp_t, bad_ch):
@@ -1201,7 +1364,7 @@ class TransformerConnectivityDummy(Transformer):
 
     def feature_extract(self, x):
         """
-            x_feat: shape(n_epochs, n_methods, n_frequencies)
+        x_feat: shape(n_epochs, n_methods, n_frequencies)
         """
         n_dim = len(x.shape)
         if not (n_dim == 2 or n_dim == 3):
@@ -1212,9 +1375,11 @@ class TransformerConnectivityDummy(Transformer):
         time_per_epoch = x.shape[-1] / self.sfreq
 
         # [(n_epochs, n_connections, n_freqs) for each method]
-        #n_cycles = np.array([freq / 2 for freq in self.freqs])
+        # n_cycles = np.array([freq / 2 for freq in self.freqs])
         n_cycles = np.array([freq * time_per_epoch / 2 for freq in self.freqs])
-        spectral_conn_list = spectral_connectivity_time(x, self.freqs, method=self.methods, sfreq=self.sfreq, n_cycles=n_cycles)
+        spectral_conn_list = spectral_connectivity_time(
+            x, self.freqs, method=self.methods, sfreq=self.sfreq, n_cycles=n_cycles
+        )
         print(f"len(spectral_conn_list) = {len(spectral_conn_list)}")
         av_list = []
 
@@ -1222,9 +1387,7 @@ class TransformerConnectivityDummy(Transformer):
             av_list.append(np.mean(spectral_conn.get_data(), axis=1))
             print(av_list[-1].shape)
 
-
         x_feat = np.swapaxes(np.array(av_list), 0, 1)
-
 
         # might have to be more careful with dimensions of x_feat
         return x_feat
@@ -1238,22 +1401,22 @@ class TransformerConnectivityDummy(Transformer):
 
 def get_model(model, age):
     if model == "kmeans":
-        transformer = TransformerKMeans()
+        transformer = KMeansFeatureExtractor()
 
     elif model == "theta":
-        transformer = TransformerTheta()
+        transformer = ThetaBandFeatureExtractor()
 
     elif model == "timebins":
-        transformer = TransformerTimeBins()
+        transformer = TimeBinsFeatureExtractor()
 
     elif model == "kmeanskernel":
-        transformer = TransformerKMeansKernel()
+        transformer = KMeansKernelFeatureExtractor()
 
     elif model == "expandedemanuel":
-        transformer = TransformerExpandedEmanuel(age)
+        transformer = TimeFreqTimefreqPowerFeatureExtractor(age)
 
     elif model == "dummyconnectivity":
-        transformer = TransformerConnectivityDummy()
+        transformer = ConnectivityDummyFeatureExtractor()
 
     elif model == "v12023":
         pass
@@ -1261,37 +1424,45 @@ def get_model(model, age):
     return transformer
 
 
-def train_transformer_on_data(source_folder, target_folder, model_folder, model, age, speed_key):
+def train_transformer_on_data(
+    source_folder, target_folder, model_folder, model, age, speed_key
+):
     phase = "train/"
-    x, y, ids, erp_t, speed, bad_chs = load_xyidst_threaded(
+    eeg_data, peak_mask, file_ids, peak_samples, speed, bad_chs = load_xyidst_threaded(
         source_folder + phase, verbose=False, load_bad_ch=True
     )
 
-
-    x_train = x
-    y_train = y
+    ground_truth = peak_mask
     bad_chs_train = bad_chs
 
     transformer = get_model(model, age)
 
-    x_feat = transformer.fit_transform(x, y, erp_t, bad_chs)
-    x_feat_train = x_feat
+    training_feature_set = transformer.extract_features(
+        eeg_data, ground_truth, peak_samples, bad_chs
+    )
 
-    save_xyidst(x_feat, y, ids, erp_t, speed, target_folder + phase, verbose=True)
+    save_xyidst(
+        training_feature_set,
+        peak_mask,
+        file_ids,
+        peak_samples,
+        speed,
+        target_folder + phase,
+        verbose=True,
+    )
 
     print("Done with train")
     phase = "val/"
-    x, y, ids, erp_t, speed, bad_chs = load_xyidst_threaded(
+    eeg_data, peak_mask, file_ids, peak_samples, speed, bad_chs = load_xyidst_threaded(
         source_folder + phase, verbose=False, load_bad_ch=True
     )
 
-    x_feat, x_val_names = transformer.transform(x, bad_chs)
+    x_feat, x_val_names = transformer.extract_features(x, bad_chs)
     print("-----------------------------------------")
     print("Validation names:")
     print(x_val_names)
     print("-----------------------------------------")
     save_xyidst(x_feat, y, ids, erp_t, speed, target_folder + phase, verbose=True)
-
 
     print("Done with val")
     phase = "test/"
@@ -1299,7 +1470,7 @@ def train_transformer_on_data(source_folder, target_folder, model_folder, model,
         source_folder + phase, verbose=False, load_bad_ch=True
     )
 
-    x_feat, x_test_names = transformer.transform(x, bad_chs)
+    x_feat, x_test_names = transformer.extract_features(x, bad_chs)
     print("-----------------------------------------")
     print("Test names:")
     print(x_test_names)
@@ -1331,25 +1502,39 @@ def train_transformer_on_data(source_folder, target_folder, model_folder, model,
 
     if model == "dummyconnectivity":
         for ind_method, method in enumerate(transformer.methods):
-            plt.figure(figsize=(10,10))
-            width=0.3
+            plt.figure(figsize=(10, 10))
+            width = 0.3
             spacing_pos_neg = width
             ticks = []
             labels = []
             for ind_freq, freq in enumerate(transformer.freqs):
                 ticks.append(ind_freq)
                 labels.append(np.round(freq, 2))
-                av_value_neg = np.mean(x_feat_train[y_train==0,ind_method, ind_freq])
-                std_value_neg = np.std(x_feat_train[y_train==0,ind_method, ind_freq])
-                av_value_pos = np.mean(x_feat_train[y_train==1,ind_method, ind_freq])
-                std_value_pos = np.std(x_feat_train[y_train==1,ind_method, ind_freq])
-                plt.bar(ind_freq, av_value_neg, width=width, color = "darkgray", alpha=0.9)
-                plt.errorbar(ind_freq, av_value_neg, yerr=std_value_neg, color = "black", alpha=0.7)
-                plt.bar(ind_freq+spacing_pos_neg, av_value_pos, width=width, color="brown", alpha=0.9)
-                plt.errorbar(ind_freq+spacing_pos_neg, av_value_pos, yerr=std_value_pos, color = "black", alpha=0.7)
-            plt.xlabel('Frequency [Hz]')
+                av_value_neg = np.mean(x_feat_train[y_train == 0, ind_method, ind_freq])
+                std_value_neg = np.std(x_feat_train[y_train == 0, ind_method, ind_freq])
+                av_value_pos = np.mean(x_feat_train[y_train == 1, ind_method, ind_freq])
+                std_value_pos = np.std(x_feat_train[y_train == 1, ind_method, ind_freq])
+                plt.bar(ind_freq, av_value_neg, width=width, color="darkgray", alpha=0.9)
+                plt.errorbar(
+                    ind_freq, av_value_neg, yerr=std_value_neg, color="black", alpha=0.7
+                )
+                plt.bar(
+                    ind_freq + spacing_pos_neg,
+                    av_value_pos,
+                    width=width,
+                    color="brown",
+                    alpha=0.9,
+                )
+                plt.errorbar(
+                    ind_freq + spacing_pos_neg,
+                    av_value_pos,
+                    yerr=std_value_pos,
+                    color="black",
+                    alpha=0.7,
+                )
+            plt.xlabel("Frequency [Hz]")
             plt.ylabel(method)
-            plt.xticks(ticks=ticks,labels=labels)
+            plt.xticks(ticks=ticks, labels=labels)
             title = f"{age}than7, {speed_key} loom, {method}, brown positive class"
             fname = f"{age}than7_{speed_key}loom_{method}.png"
             fig_dir = os.path.join("figures", DATA_FOLDER)
@@ -1358,6 +1543,9 @@ def train_transformer_on_data(source_folder, target_folder, model_folder, model,
             plt.title(title)
             plt.savefig(os.path.join(fig_dir, fname))
             plt.close()
+
+    feature_names_filepath = target_folder + phase + "feature_names.json"
+    transformer.feature_names_to_file(feature_names_filepath)
 
 
 def main():
@@ -1368,16 +1556,29 @@ def main():
             ages.append(age)
             speed_keys.append(speed_key)
 
-    source_folders = [DATA_FOLDER + age + "than7/dataset/preprocessed/" + speed_key + "/" for age, speed_key in zip(ages, speed_keys)]
-    target_folders = [DATA_FOLDER + age + "than7/dataset/transformed/" + speed_key + "/" for age, speed_key in zip(ages, speed_keys)]
-    model_folders = [DATA_FOLDER + age + "than7/models/" + MODEL + "/transformer/" + speed_key + "/" for age, speed_key in zip(ages, speed_keys)]
+    source_folders = [
+        DATA_FOLDER + age + "than7/dataset/preprocessed/" + speed_key + "/"
+        for age, speed_key in zip(ages, speed_keys)
+    ]
+    target_folders = [
+        DATA_FOLDER + age + "than7/dataset/extracted_features/" + speed_key + "/"
+        for age, speed_key in zip(ages, speed_keys)
+    ]
+    model_folders = [
+        DATA_FOLDER + age + "than7/models/" + MODEL + "/transformer/" + speed_key + "/"
+        for age, speed_key in zip(ages, speed_keys)
+    ]
 
-    for source_dir, target_dir, model_dir, age, speed_key in zip(source_folders, target_folders, model_folders, ages, speed_keys):
+    for source_dir, target_dir, model_dir, age, speed_key in zip(
+        source_folders, target_folders, model_folders, ages, speed_keys
+    ):
         if not os.path.isdir(target_dir):
             os.makedirs(target_dir)
         if not os.path.isdir(model_dir):
             os.makedirs(model_dir)
-        train_transformer_on_data(source_dir, target_dir, model_dir, MODEL, age, speed_key)
+        train_transformer_on_data(
+            source_dir, target_dir, model_dir, MODEL, age, speed_key
+        )
 
 
 if __name__ == "__main__":
