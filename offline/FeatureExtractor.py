@@ -202,10 +202,12 @@ def extract_freq_domain_features(x, x_ref):
     phase_difference = get_instantaneous_phase_diff(x, x_ref, freq)
 
     mean_phase_difference = np.mean(phase_difference, axis=1)
-    std_phase_difference  = np.std(phase_difference, axis=1)
+    std_phase_difference = np.std(phase_difference, axis=1)
 
     x_f_f = np.stack([bandpower, mean_phase_difference, std_phase_difference], axis=1)
-    x_f_f_names = np.array(["bandpower", "mean_phase_difference", "std_phase_difference"])
+    x_f_f_names = np.array(
+        ["bandpower", "mean_phase_difference", "std_phase_difference"]
+    )
     return x_f_f, x_f_f_names
 
 
@@ -213,7 +215,9 @@ def extract_timefreq_domain_features(peak_eeg_data):
     power_spectra = []
     for i in range(peak_eeg_data.shape[0]):
         _, _, power_spectrum = signal.spectrogram(
-            peak_eeg_data[i], fs=SAMPLING_FREQUENCY, nperseg=BABY_HD_EEG_NUM_CHANNELS / 4
+            peak_eeg_data[i],
+            fs=SAMPLING_FREQUENCY,
+            nperseg=int(BABY_HD_EEG_NUM_CHANNELS / 4),
         )
         power_spectra.append(power_spectrum)
 
@@ -227,7 +231,9 @@ def extract_timefreq_domain_features(peak_eeg_data):
     )
     mean_instantaneous_freq = np.mean(np.argmax(power_spectra, axis=1), axis=1)
 
-    timefreq_features = np.stack([mean_spectral_entropy, mean_instantaneous_freq], axis=1)
+    timefreq_features = np.stack(
+        [mean_spectral_entropy, mean_instantaneous_freq], axis=1
+    )
     timefreq_feature_names = np.array(
         ["mean_spectral_entropy", "mean_instantaneous_freq"]
     )
@@ -703,7 +709,9 @@ class KMeansFeatureExtractor(FeatureExtractor):
         x_t_feat = self.get_time_domain_features(x_spat)
         n_dim = len(x_spat.shape)
         if n_dim == 3:
-            x_spat_time = np.zeros((x.shape[0], self.n_clusters_ch, self.n_clusters_time))
+            x_spat_time = np.zeros(
+                (x.shape[0], self.n_clusters_ch, self.n_clusters_time)
+            )
             for i in range(self.n_clusters_ch):
                 x_spat_time[:, i, :] = self.kmeans_time[i].transform(x_spat[:, i, :])
             x_km_feat = self.feature_extract(x_spat_time)
@@ -739,7 +747,9 @@ class KMeansKernelFeatureExtractor(FeatureExtractor):
         # Waveform clustering, one for each electrode cluster
         self.n_kernels = 5
         self.kernel_len = 50
-        self.kernels = np.zeros((self.n_clusters_ch, self.n_kernels, 2 * self.kernel_len))
+        self.kernels = np.zeros(
+            (self.n_clusters_ch, self.n_kernels, 2 * self.kernel_len)
+        )
 
     def check_enough_good_ch(self, bad_ch):
         n_dim = len(bad_ch.shape)
@@ -1086,7 +1096,7 @@ class TimeFreqTimefreqPowerFeatureExtractor(FeatureExtractor):
 
     def fit_transform(self, x, y, erp_t, bad_ch):
         self.fit(x, y, erp_t, bad_ch)
-        return self.transform(x, bad_ch)[0]
+        return self.extract_features(x, bad_ch)[0]
 
     def extract_features(self, eeg_data, bad_channel_mask):
         return extract_time_freq_timefreq_power_features(
@@ -1118,10 +1128,11 @@ class TimeFreqTimefreqPowerFeatureExtractor(FeatureExtractor):
 
     def feature_names_to_file(self, filepath):
         feature_names_json = {
-            str(idx): feature_name for idx, feature_name in self.feature_names
+            str(idx): feature_name for idx, feature_name in enumerate(self.feature_names)
         }
         with open(filepath, "w") as feature_names_file:
-            json.dump(feature_names_json)
+            print(filepath)
+            json.dump(feature_names_json, feature_names_file)
 
 
 class TimeBinsFeatureExtractor(FeatureExtractor):
@@ -1437,7 +1448,7 @@ def train_transformer_on_data(
 
     transformer = get_model(model, age)
 
-    training_feature_set = transformer.extract_features(
+    training_feature_set = transformer.fit_transform(
         eeg_data, ground_truth, peak_samples, bad_chs
     )
 
@@ -1457,25 +1468,45 @@ def train_transformer_on_data(
         source_folder + phase, verbose=False, load_bad_ch=True
     )
 
-    x_feat, x_val_names = transformer.extract_features(x, bad_chs)
+    validation_feature_set, validation_feature_names = transformer.extract_features(
+        eeg_data, bad_chs
+    )
     print("-----------------------------------------")
     print("Validation names:")
-    print(x_val_names)
+    print(validation_feature_names)
     print("-----------------------------------------")
-    save_extracted_data(x_feat, y, ids, erp_t, speed, target_folder + phase, verbose=True)
+    save_extracted_data(
+        validation_feature_set,
+        peak_mask,
+        file_ids,
+        peak_samples,
+        speed,
+        target_folder + phase,
+        verbose=True,
+    )
 
     print("Done with val")
     phase = "test/"
-    x, y, ids, erp_t, speed, bad_chs = load_xyidst_threaded(
+    eeg_data, peak_mask, file_ids, peak_samples, speed, bad_chs = load_xyidst_threaded(
         source_folder + phase, verbose=False, load_bad_ch=True
     )
 
-    x_feat, x_test_names = transformer.extract_features(x, bad_chs)
+    test_feature_set, test_feature_names = transformer.extract_features(
+        eeg_data, bad_chs
+    )
     print("-----------------------------------------")
     print("Test names:")
-    print(x_test_names)
+    print(test_feature_names)
     print("-----------------------------------------")
-    save_extracted_data(x_feat, y, ids, erp_t, speed, target_folder + phase, verbose=True)
+    save_extracted_data(
+        test_feature_set,
+        peak_mask,
+        file_ids,
+        peak_samples,
+        speed,
+        target_folder + phase,
+        verbose=True,
+    )
 
     print(f"Transformer output shape: {transformer.output_shape}")
     if not os.path.isdir(model_folder):
@@ -1498,7 +1529,9 @@ def train_transformer_on_data(
         plot = input("Plot kernels? (y/n)")
         if plot == "y":
             x_train = normalize(x_train)
-            kmeanskernel_transformer_review(transformer, x_train, y_train, bad_chs_train)
+            kmeanskernel_transformer_review(
+                transformer, x_train, y_train, bad_chs_train
+            )
 
     if model == "dummyconnectivity":
         for ind_method, method in enumerate(transformer.methods):
@@ -1514,7 +1547,9 @@ def train_transformer_on_data(
                 std_value_neg = np.std(x_feat_train[y_train == 0, ind_method, ind_freq])
                 av_value_pos = np.mean(x_feat_train[y_train == 1, ind_method, ind_freq])
                 std_value_pos = np.std(x_feat_train[y_train == 1, ind_method, ind_freq])
-                plt.bar(ind_freq, av_value_neg, width=width, color="darkgray", alpha=0.9)
+                plt.bar(
+                    ind_freq, av_value_neg, width=width, color="darkgray", alpha=0.9
+                )
                 plt.errorbar(
                     ind_freq, av_value_neg, yerr=std_value_neg, color="black", alpha=0.7
                 )
@@ -1544,7 +1579,7 @@ def train_transformer_on_data(
             plt.savefig(os.path.join(fig_dir, fname))
             plt.close()
 
-    feature_names_filepath = target_folder + phase + "feature_names.json"
+    feature_names_filepath = os.path.split(target_folder.rstrip(os.sep))[0] + "/feature_names.json"
     transformer.feature_names_to_file(feature_names_filepath)
 
 

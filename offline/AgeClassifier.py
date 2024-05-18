@@ -35,7 +35,7 @@ class AgeClassifier:
         self.feature_names = ['rms','median','std','var','maximum','minimum','p_amplitude','p_latency','p_dur','p_prom','n_amplitude','n_latency','n_dur','n_prom','frac_area_latency','frac_area_duration','zero_crossings','z_score','hjorth_mob','hjorth_act','petrosian_frac_dim','bandpower','mean_phase_d','std_phase_d','mean_spectral_entropy','mean_instantaneous_freq','sxx_f0.0_t128.0','sxx_f0.0_t352.0','sxx_f0.0_t576.0','sxx_f0.0_t800.0','sxx_f4.0_t128.0','sxx_f4.0_t352.0','sxx_f4.0_t576.0','sxx_f4.0_t800.0','sxx_f8.0_t128.0','sxx_f8.0_t352.0','sxx_f8.0_t576.0','sxx_f8.0_t800.0','sxx_f12.0_t128.0','sxx_f12.0_t352.0','sxx_f12.0_t576.0','sxx_f12.0_t800.0','sxx_f16.0_t128.0','sxx_f16.0_t352.0','sxx_f16.0_t576.0','sxx_f16.0_t800.0','sxx_f20.0_t128.0','sxx_f20.0_t352.0','sxx_f20.0_t576.0','sxx_f20.0_t800.0','sxx_f23.0_t128.0','sxx_f23.0_t352.0','sxx_f23.0_t576.0','sxx_f23.0_t800.0']
         self.permutation_importances = {}
 
-    def train_val_test(self, only_test=False):
+    def train_val_test(self, only_test=False, do_permutation_importance=False):
         for phase in PHASES:
             if only_test and phase != "test":
                 continue
@@ -45,7 +45,7 @@ class AgeClassifier:
             for age in AGES:
                 for speed in SPEEDS:
                     try:
-                        x, y, _, _, _, _ = load_xyidst_threaded(f"data/{age}/dataset/transformed/{speed}/{phase}/")
+                        x, y, _, _, _, _ = load_xyidst_threaded(f"data/{age}/dataset/extracted_features/{speed}/{phase}/")
                     except:
                         print(f"The folder structure is incorrect for {age} and {speed} speed in {phase} phase, or files could not be found. Please ensure that you've run the preprocessing and feature-extraction pipeline.")
                         sys.exit()
@@ -72,8 +72,8 @@ class AgeClassifier:
                 self.clf.fit(trial_data, class_labels)
             
             self.evaluate(trial_data, class_labels, phase)
-
-            self.permutation_importances = permutation_importance(self.clf, trial_data, class_labels, n_repeats=500, random_state=53, n_jobs=-1)
+            if do_permutation_importance:
+                self.permutation_importances = permutation_importance(self.clf, trial_data, class_labels, n_repeats=500, random_state=53, n_jobs=-1)
             print("---------------------PERMUTATION IMPORTANCES------------------------------")
             print(self.permutation_importances)
         if not only_test:
@@ -97,10 +97,11 @@ class AgeClassifier:
                 file_exists = os.path.isfile(path + fname + ".sav")
 
         path = path + '/' + fname + ".sav"
-        with open(path.replace('\\', '/'), "wb") as model_file:
+        path = path.replace('\\', '/')
+        with open(path, "wb") as model_file:
             pickle.dump(self.clf, model_file)
 
-        print(f"Model saved to {path.replace('\\', '/')}")
+        print(f"Model saved to {path}")
 
 
     def evaluate(self, trial_data, class_labels, phase):
@@ -139,10 +140,10 @@ class AgeClassifier:
         print(f"Recall: {recall}")
         print(f"F1 score: {F1_score}")
 
-    def load_and_test(self, model_path):
+    def load_and_test(self, model_path, compute_importance):
         with open(model_path, 'rb') as model:
             self.clf = pickle.load(model)
-        self.train_val_test(only_test=True)
+        self.train_val_test(only_test=True, do_permutation_importance=compute_importance)
 
     def visualise_tree(self):
         trees = self.clf.estimators_
@@ -151,9 +152,9 @@ class AgeClassifier:
         tree.plot_tree(trees[tree_to_visualise], filled=True, rounded=True)
         plt.show()
 
-    def visualise_feature_importances(self, type='permutation'):
-        importances = self.permutation_importances['importances_mean'] if type == 'permutation' else self.clf.feature_importances_
-        stds = self.permutation_importances['importances_std'] if type == 'permutation' else np.std([tree.feature_importances_ for tree in self.clf.estimators_], axis=0)
+    def visualise_feature_importances(self, importance_type='permutation'):
+        importances = self.permutation_importances['importances_mean'] if importance_type == 'permutation' else self.clf.feature_importances_
+        stds = self.permutation_importances['importances_std'] if importance_type == 'permutation' else np.std([tree.feature_importances_ for tree in self.clf.estimators_], axis=0)
         sorted_idx = importances.argsort()
         sorted_importances = importances[sorted_idx]
         sorted_stds = stds[sorted_idx]
@@ -165,9 +166,9 @@ class AgeClassifier:
         # plt.yticks(range(1, len(importances) + 1), range(1, len(importances) + 1))
         plt.yticks(range(len(sorted_idx)), sorted_features)
         plt.xticks(np.arange(0, max(sorted_importances) + 0.1, 0.01))
-        plt.title(f'{"Permutation" if type == 'permutation' else "Impurity"}-Based Feature Importance')
+        plt.title(f'{"Permutation" if importance_type == "permutation" else "Impurity"}-Based Feature Importance')
         plt.ylabel('Feature')
-        plt.xlabel(f'Mean Decrease in {'Classification Accuracy Score' if type == 'permutation' else 'Impurity'}')
+        plt.xlabel(f'Mean Decrease in {"Classification Accuracy Score" if importance_type == "permutation" else "Impurity"}')
         plt.show()
 
 
@@ -177,12 +178,15 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--model-path")
+    parser.add_argument("--compute-importance")
     model_path = parser.parse_args().model_path
+    compute_importance = parser.parse_args().compute_importance
     if model_path:
-        random_forest.load_and_test(model_path)
+        random_forest.load_and_test(model_path, compute_importance)
         random_forest.visualise_tree()
-        random_forest.visualise_feature_importances(type='permutation')
-        random_forest.visualise_feature_importances(type='impurity')
+        if compute_importance:
+            random_forest.visualise_feature_importances(type='permutation')
+            random_forest.visualise_feature_importances(type='impurity')
     else:
         random_forest.train_val_test()    
         

@@ -1,6 +1,7 @@
 from threading import Thread
 import numpy as np
 from time import perf_counter
+import os
 
 def load_xyidst(directory, verbose=False, load_bad_ch=False):
     x = np.load(directory + "x.npy")
@@ -83,6 +84,8 @@ class Data:
             self.bad_ch = np.load(directory + "bad_ch.npy")
 
 def save_extracted_data(x, y, ids, erp_t, speed, folder, bad_ch=None, verbose=False):
+    if not os.path.isdir(folder):
+        os.makedirs(folder)
     np.save(folder + "x.npy", x)
     np.save(folder + "y.npy", y)
     np.save(folder + "ids.npy", ids)

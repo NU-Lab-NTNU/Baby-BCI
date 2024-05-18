@@ -4,10 +4,10 @@ import multiprocessing
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 from enum import Enum
-from util import load_xyidst_threaded, data_split_save, save_xyidst
+from util import load_xyidst_threaded, data_split_save, save_extracted_data
 
 if __name__ == "__main__":
-    from util import load_xyidst_threaded, data_split_save, save_xyidst
+    from util import load_xyidst_threaded, data_split_save, save_extracted_data
     import warnings
     import os
 
@@ -283,7 +283,7 @@ def resample(eeg_data, peak_mask, file_ids, peak_samples, speed, bad_chs):
     peak_number_difference = num_no_peaks - num_peaks
     if peak_number_difference > 0:
         rng = np.random.default_rng()
-        no_peaks_idx = np.nonzero(num_no_peaks)
+        no_peaks_idx = np.nonzero(no_peaks_mask)
         drop_idx = rng.choice(
             no_peaks_idx[0], size=peak_number_difference, replace=False
         )
@@ -377,18 +377,18 @@ def preprocess_dataset(age, source_dir, target_dir, speed_key):
         channels_to_plot,
         voffset=20,
         title="Raw waveform of first trial in dataset",
-        y_true=peak_mask[0],
-        t_true=peak_samples[0],
+        ground_truth_is_peak=peak_mask[0],
+        ground_truth_peak_sample=peak_samples[0],
     )
     plot_channels(
         first_trial_preprocessed_eeg,
         channels_to_plot,
         voffset=20,
         title="Preprocessed waveform of first trial in dataset",
-        y_true=peak_mask[0],
-        t_true=peak_samples[0],
+        ground_truth_is_peak=peak_mask[0],
+        ground_truth_peak_sample=peak_samples[0],
     )
-    # plt.show()
+    #plt.show()
     print(f"Finished {age}")
 
 
@@ -413,7 +413,7 @@ def combine_datasets():
         bad_ch = np.concatenate([bad_chl, bad_chg], axis=0)
 
         target_folder = "data/all/dataset/preprocessed/" + phase
-        save_xyidst(x, y, ids, erp_t, speed, target_folder, bad_ch=bad_ch, verbose=True)
+        save_extracted_data(x, y, ids, erp_t, speed, target_folder, bad_ch=bad_ch, verbose=True)
 
 
 def main():

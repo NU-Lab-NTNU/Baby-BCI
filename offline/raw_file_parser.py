@@ -237,9 +237,9 @@ def read_evt_file(filename, sampling_freq):
     parietal_mask = parietal_peak_samples != 0
 
     # Number of samples before collision
-    oz_ts = np.round(
+    occipital_peak_samples = np.round(
         (
-            oz_ts
+            occipital_peak_samples
             - np.where(
                 occipital_mask, collision_samples, np.zeros(collision_samples.shape)
             ).astype(np.float64)
@@ -247,9 +247,9 @@ def read_evt_file(filename, sampling_freq):
         * sampling_freq
         * 1e-6
     )
-    pz_ts = np.round(
+    parietal_peak_samples = np.round(
         (
-            pz_ts
+            parietal_peak_samples
             - np.where(
                 parietal_mask, collision_samples, np.zeros(collision_samples.shape)
             ).astype(np.float64)
@@ -259,10 +259,10 @@ def read_evt_file(filename, sampling_freq):
     )
 
     occipital_outside_extracted_data = (
-        np.absolute(oz_ts) > TIME_TO_EXTRACT * sampling_freq
+        np.absolute(occipital_peak_samples) > TIME_TO_EXTRACT * sampling_freq
     )
     parietal_outside_extracted_data = (
-        np.absolute(pz_ts) > TIME_TO_EXTRACT * sampling_freq
+        np.absolute(parietal_peak_samples) > TIME_TO_EXTRACT * sampling_freq
     )
 
     occipital_mask[occipital_outside_extracted_data] = 0
@@ -380,10 +380,10 @@ def extract_trials(filename, speed_key):
                     speed,
                     speed_key,
                 )
-                data_success, eeg, status_code = parse_raw_data(
+                status_code, eeg  = parse_raw_data(
                     raw_data, collision_samples, raw_start_ts, raw_stop_ts, peak_mask
                 )
-                if data_success:
+                if status_code == StatusCode.SUCCESS:
                     return StatusCode.SUCCESS, eeg, peak_mask, peak_samples, speed
 
                 else:
@@ -414,7 +414,7 @@ def parse_all_files(source_folder, target_folder, speed_key):
             continue
 
         filename, _ = os.path.splitext(filename)
-        filename_list_split.append(fname)
+        filename_list_split.append(filename)
 
     unique_filenames = set(filename_list_split)
 
