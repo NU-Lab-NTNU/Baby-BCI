@@ -6,7 +6,7 @@ import json
 
 if __name__ == "__main__":
     from mne_connectivity import spectral_connectivity_time
-    from util import load_xyidst_threaded, save_xyidst
+    from util import load_xyidst_threaded, save_extracted_data
     import pickle
     import matplotlib.pyplot as plt
     import os
@@ -1441,7 +1441,7 @@ def train_transformer_on_data(
         eeg_data, ground_truth, peak_samples, bad_chs
     )
 
-    save_xyidst(
+    save_extracted_data(
         training_feature_set,
         peak_mask,
         file_ids,
@@ -1462,7 +1462,7 @@ def train_transformer_on_data(
     print("Validation names:")
     print(x_val_names)
     print("-----------------------------------------")
-    save_xyidst(x_feat, y, ids, erp_t, speed, target_folder + phase, verbose=True)
+    save_extracted_data(x_feat, y, ids, erp_t, speed, target_folder + phase, verbose=True)
 
     print("Done with val")
     phase = "test/"
@@ -1475,7 +1475,7 @@ def train_transformer_on_data(
     print("Test names:")
     print(x_test_names)
     print("-----------------------------------------")
-    save_xyidst(x_feat, y, ids, erp_t, speed, target_folder + phase, verbose=True)
+    save_extracted_data(x_feat, y, ids, erp_t, speed, target_folder + phase, verbose=True)
 
     print(f"Transformer output shape: {transformer.output_shape}")
     if not os.path.isdir(model_folder):
