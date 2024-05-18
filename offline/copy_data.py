@@ -58,6 +58,7 @@ def get_timestamps_raw(fname, event="stm-"):
     try:
         egi = mne.io.read_raw_egi(fname, exclude=triggers, verbose="WARNING")
     except:
+        print("Read raw EGI failed when getting timestamps from raw file.")
         return None, 0
 
     ch_names_idx = {}
