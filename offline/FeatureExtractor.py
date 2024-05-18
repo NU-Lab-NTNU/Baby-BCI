@@ -26,7 +26,7 @@ BABY_HD_EEG_NUM_CHANNELS = 128
 MIN_REFERENCE_CHANNEL_NUM = 2
 MIN_FEATURE_CHANNEL_NUM = 5
 
-MILLIS_TO_SECONDS = 1000
+SECONDS_TO_MILLIS = 1000
 
 
 def find_zero_crossings(x_erp):
@@ -199,13 +199,13 @@ def extract_freq_domain_features(x, x_ref):
     mag_band = np.absolute(x_f_band)
     bandpower = np.log10(np.mean(np.power(mag_band, 2), axis=1))
 
-    phase_d = get_instantaneous_phase_diff(x, x_ref, freq)
+    phase_difference = get_instantaneous_phase_diff(x, x_ref, freq)
 
-    mean_phase_d = np.mean(phase_d, axis=1)
-    std_phase_d = np.std(phase_d, axis=1)
+    mean_phase_difference = np.mean(phase_difference, axis=1)
+    std_phase_difference  = np.std(phase_difference, axis=1)
 
-    x_f_f = np.stack([bandpower, mean_phase_d, std_phase_d], axis=1)
-    x_f_f_names = np.array(["bandpower", "mean_phase_d", "std_phase_d"])
+    x_f_f = np.stack([bandpower, mean_phase_difference, std_phase_difference], axis=1)
+    x_f_f_names = np.array(["bandpower", "mean_phase_difference", "std_phase_difference"])
     return x_f_f, x_f_f_names
 
 
@@ -245,7 +245,7 @@ def extract_power_features(eeg_data):
     power_spectra = np.array(power_spectra)
     freq_mask = spectrogram_freq < 25
     feature_frequencies = np.round(spectrogram_freq[freq_mask])
-    times_in_seconds = np.round(spectrogram_time * MILLIS_TO_SECONDS)
+    times_in_seconds = np.round(spectrogram_time * SECONDS_TO_MILLIS)
     power_features = power_spectra[:, freq_mask]
 
     power_feature_list = []
