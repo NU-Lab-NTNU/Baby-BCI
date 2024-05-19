@@ -286,6 +286,7 @@ def extract_time_freq_timefreq_power_features(
     feature_channels_mask,
     possible_samples_with_peak,
     reference_channels_mask,
+    area
 ):
     ndim = len(eeg_data.shape)
     if not (ndim == 3 or ndim == 2):
@@ -301,14 +302,19 @@ def extract_time_freq_timefreq_power_features(
     time_domain_features, time_domain_features_names = extract_time_domain_features(
         possible_waveform_with_peak
     )
+    time_domain_features_names = [f"{area}_{name}" for name in time_domain_features_names]
+
     freq_domain_features, freq_domain_features_names = extract_freq_domain_features(
         feature_channels_data, reference_channels_data
     )
+    freq_domain_features_names = [f"{area}_{name}" for name in freq_domain_features_names]
+
     (
         timefreq_domain_features,
         timefreq_domain_features_names,
     ) = extract_timefreq_domain_features(possible_waveform_with_peak)
     power_features, power_features_names = extract_power_features(feature_channels_data)
+    power_features_names = [f"{area}_{name}" for name in power_features_names]
 
     extracted_features = np.concatenate(
         [
@@ -1040,19 +1046,21 @@ class TimeFreqTimefreqPowerFeatureExtractor(FeatureExtractor):
         self.name = "TransformerExpandedEmanuel"
         self.feature_names = []
 
-        self.feature_channels_mask = np.zeros(num_channels, dtype=bool)
+        self.occipital_feature_channels_mask = np.zeros(num_channels, dtype=bool)
+        self.frontal_feature_channels_mask = np.zeros(num_channels, dtype=bool)
         # Why only these channels?
 
-        channels_to_include = np.array([
-                                        60, 62, 66, 67, 71, 72, 73, 76, 77, 78, 84, 85, # occipital channels
-                                        9, 10, 11, 15, 16, 18, 21, 22, 24, 25, 26, 27 # (pre)frontal channels
-                                        ]) - 1
-        for channel in channels_to_include:
-            self.feature_channels_mask[channel] = True
+        occipital_channels_to_include = np.array([60, 62, 66, 67, 71, 72, 73, 76, 77, 78, 84, 85]) - 1 # occipital channels
+        frontal_channels_to_include = np.array([9, 10, 11, 15, 16, 18, 21, 22, 24, 25, 26, 27]) - 1 # (pre)frontal channels
+        for channel in occipital_channels_to_include:
+            self.occipital_feature_channels_mask[channel] = True
+
+        for channel in frontal_channels_to_include:
+            self.frontal_feature_channels_mask[channel] = True
 
         # Channels 21 to 50 are for some reason used as reference signals. Why?
         self.reference_channels_mask = np.zeros(num_channels, dtype=bool)
-        for reference_channel in range(20, 50):
+        for reference_channel in range(30, 50):
             self.reference_channels_mask[reference_channel] = True
 
         # Why?
@@ -1082,13 +1090,26 @@ class TimeFreqTimefreqPowerFeatureExtractor(FeatureExtractor):
         self.input_shape = (eeg_data.shape[1], eeg_data.shape[2])
         self.fitted = True
 
-        extracted_features, feature_names = extract_time_freq_timefreq_power_features(
+        occipital_features, occipital_feature_names = extract_time_freq_timefreq_power_features(
             eeg_data,
             bad_channel_mask,
-            self.feature_channels_mask,
+            self.occipital_feature_channels_mask,
             self.possible_samples_with_peak,
             self.reference_channels_mask,
+            area='occipital'
         )
+
+        frontal_features, frontal_feature_names = extract_time_freq_timefreq_power_features(
+            eeg_data,
+            bad_channel_mask,
+            self.occipital_feature_channels_mask,
+            self.possible_samples_with_peak,
+            self.reference_channels_mask,
+            area='frontal'
+        )
+
+        extracted_features = np.concatenate([occipital_features, frontal_features], axis=1)
+        feature_names = np.concatenate([occipital_feature_names, frontal_feature_names], axis=0)
 
         self.feature_names = feature_names
         self.output_shape = (
@@ -1102,13 +1123,26 @@ class TimeFreqTimefreqPowerFeatureExtractor(FeatureExtractor):
 
     def extract_features(self, eeg_data, bad_channel_mask):
         self.check_enough_good_ch(bad_channel_mask)
-        return extract_time_freq_timefreq_power_features(
+
+        occipital_features, occipital_feature_names = extract_time_freq_timefreq_power_features(
             eeg_data,
             bad_channel_mask,
-            self.feature_channels_mask,
+            self.occipital_feature_channels_mask,
             self.possible_samples_with_peak,
             self.reference_channels_mask,
+            area='occipital'
         )
+
+        frontal_features, frontal_feature_names = extract_time_freq_timefreq_power_features(
+            eeg_data,
+            bad_channel_mask,
+            self.occipital_feature_channels_mask,
+            self.possible_samples_with_peak,
+            self.reference_channels_mask,
+            area='frontal'
+        )
+
+        return np.concatenate([occipital_features, frontal_features], axis=1), np.concatenate([occipital_feature_names, frontal_feature_names], axis=0)
 
     def check_enough_good_ch(self, bad_channel_mask):
         n_dim = len(bad_channel_mask.shape)
@@ -1116,7 +1150,7 @@ class TimeFreqTimefreqPowerFeatureExtractor(FeatureExtractor):
             raise ValueError(f"bad_ch {bad_channel_mask.shape} has wrong dimensions.")
 
         self.feature_channels_mask = np.logical_and(
-            self.feature_channels_mask, np.logical_not(bad_channel_mask)
+            np.logical_or(self.occipital_feature_channels_mask, self.frontal_feature_channels_mask), np.logical_not(bad_channel_mask)
         )
         if np.sum(self.feature_channels_mask) < MIN_FEATURE_CHANNEL_NUM:
             return False
