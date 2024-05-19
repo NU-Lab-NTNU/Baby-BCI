@@ -27,6 +27,7 @@ MIN_REFERENCE_CHANNEL_NUM = 2
 MIN_FEATURE_CHANNEL_NUM = 5
 
 SECONDS_TO_MILLIS = 1000
+BAD_CHANNEL_THRESHOLD = 0.3
 
 
 def find_zero_crossings(x_erp):
@@ -220,9 +221,6 @@ def extract_timefreq_domain_features(peak_eeg_data):
             nperseg=int(BABY_HD_EEG_NUM_CHANNELS / 4),
         )
         power_spectra.append(power_spectrum)
-
-    for i, power_spectrum in enumerate(power_spectra):
-        print(f"Spectrogram {i} shape: {power_spectrum.shape}")
 
     power_spectra = np.stack(power_spectra, axis=0)
 
@@ -1044,7 +1042,11 @@ class TimeFreqTimefreqPowerFeatureExtractor(FeatureExtractor):
 
         self.feature_channels_mask = np.zeros(num_channels, dtype=bool)
         # Why only these channels?
-        channels_to_include = np.array([66, 67, 71, 72, 73, 76, 77, 78, 84, 85]) - 1
+
+        channels_to_include = np.array([
+                                        60, 62, 66, 67, 71, 72, 73, 76, 77, 78, 84, 85, # occipital channels
+                                        9, 10, 11, 15, 16, 18, 21, 22, 24, 25, 26, 27 # (pre)frontal channels
+                                        ]) - 1
         for channel in channels_to_include:
             self.feature_channels_mask[channel] = True
 
@@ -1099,6 +1101,7 @@ class TimeFreqTimefreqPowerFeatureExtractor(FeatureExtractor):
         return self.extract_features(x, bad_ch)[0]
 
     def extract_features(self, eeg_data, bad_channel_mask):
+        self.check_enough_good_ch(bad_channel_mask)
         return extract_time_freq_timefreq_power_features(
             eeg_data,
             bad_channel_mask,
@@ -1112,17 +1115,18 @@ class TimeFreqTimefreqPowerFeatureExtractor(FeatureExtractor):
         if not (n_dim == 1):
             raise ValueError(f"bad_ch {bad_channel_mask.shape} has wrong dimensions.")
 
-        good_feature_channels_mask = np.logical_and(
+        self.feature_channels_mask = np.logical_and(
             self.feature_channels_mask, np.logical_not(bad_channel_mask)
         )
-        if np.sum(good_feature_channels_mask) < MIN_FEATURE_CHANNEL_NUM:
+        if np.sum(self.feature_channels_mask) < MIN_FEATURE_CHANNEL_NUM:
             return False
 
-        good_reference_channels_mask = np.logical_and(
-            self.ref_mask, np.logical_not(bad_channel_mask)
+        self.reference_channels_mask = np.logical_and(
+            self.reference_channels_mask, np.logical_not(bad_channel_mask)
         )
-        if np.sum(good_reference_channels_mask) < MIN_REFERENCE_CHANNEL_NUM:
+        if np.sum(self.reference_channels_mask) < MIN_REFERENCE_CHANNEL_NUM:
             return False
+
 
         return True
 
@@ -1442,14 +1446,15 @@ def train_transformer_on_data(
     eeg_data, peak_mask, file_ids, peak_samples, speed, bad_chs = load_xyidst_threaded(
         source_folder + phase, verbose=False, load_bad_ch=True
     )
-
+    print(eeg_data.shape)
+    print(peak_mask.shape)
+    print(bad_chs.shape)
     ground_truth = peak_mask
-    bad_chs_train = bad_chs
-
+    bad_channel_mask_training = (np.mean(bad_chs, axis=0) > BAD_CHANNEL_THRESHOLD) 
     transformer = get_model(model, age)
 
     training_feature_set = transformer.fit_transform(
-        eeg_data, ground_truth, peak_samples, bad_chs
+        eeg_data, ground_truth, peak_samples, bad_channel_mask_training
     )
 
     save_extracted_data(
@@ -1468,8 +1473,10 @@ def train_transformer_on_data(
         source_folder + phase, verbose=False, load_bad_ch=True
     )
 
+    bad_channel_mask_validation = (np.mean(bad_chs, axis=0) > BAD_CHANNEL_THRESHOLD)
+
     validation_feature_set, validation_feature_names = transformer.extract_features(
-        eeg_data, bad_chs
+        eeg_data, bad_channel_mask_validation
     )
     print("-----------------------------------------")
     print("Validation names:")
@@ -1491,8 +1498,10 @@ def train_transformer_on_data(
         source_folder + phase, verbose=False, load_bad_ch=True
     )
 
+    bad_channel_mask_test = (np.mean(bad_chs, axis=0) > BAD_CHANNEL_THRESHOLD)
+
     test_feature_set, test_feature_names = transformer.extract_features(
-        eeg_data, bad_chs
+        eeg_data, bad_channel_mask_test
     )
     print("-----------------------------------------")
     print("Test names:")

@@ -185,8 +185,8 @@ if __name__ == "__main__":
         random_forest.load_and_test(model_path, compute_importance)
         random_forest.visualise_tree()
         if compute_importance:
-            random_forest.visualise_feature_importances(type='permutation')
-            random_forest.visualise_feature_importances(type='impurity')
+            random_forest.visualise_feature_importances(importance_type='permutation')
+            random_forest.visualise_feature_importances(importance_type='impurity')
     else:
         random_forest.train_val_test()    
         
